@@ -1,7 +1,14 @@
 use ethereum_types::U256;
 use serde::Deserialize;
 
-#[derive(Debug, Deserialize)]
+pub mod stack;
+use crate::stack::Stack;
+pub mod memory;
+use crate::memory::Memory;
+pub mod opcode;
+use crate::opcode::Opcode;
+
+#[derive(Debug, Deserialize, Clone)]
 pub struct Code {
     #[serde(default)]
     pub asm: Option<String>,
@@ -14,25 +21,36 @@ pub struct EvmResult {
     pub success: bool,
 }
 
-pub fn evm(_code: impl AsRef<[u8]>) -> EvmResult {
-    let stack: Vec<U256> = Vec::new();
-    let mut pc = 0;
+pub struct ExecutionContext {
+    code: Vec<u8>,
+    stack: Stack,
+    memory: Memory,
+    pc: usize,
+    stopped: bool,
+}
 
-    let code = _code.as_ref();
-
-    while pc < code.len() {
-        let opcode = code[pc];
-        pc += 1;
-
-        if opcode == 0x00 {
-            // STOP
+impl ExecutionContext {
+    pub fn new(code: Vec<u8>) -> Self {
+        Self {
+            code,
+            stack: Stack::new(),
+            memory: Memory::new(),
+            pc: 0,
+            stopped: false,
         }
     }
 
-    // TODO: Implement me
+    pub fn run(&mut self) -> EvmResult {
+        while !self.stopped && self.pc < self.code.len(){
+            // println!("PC: {:#?}/{:#?}", self.pc, self.code.len()-1);
+            let opcode: Opcode = self.code[self.pc].try_into().unwrap();
+            let pc_delta = opcode.execute(self);
+            self.pc += pc_delta;
+        }
 
-    return EvmResult {
-        stack,
-        success: true,
-    };
+        EvmResult {
+            stack: self.stack.deref_items(),
+            success: true,
+        }
+    }
 }

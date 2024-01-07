@@ -13,7 +13,7 @@
  * to Rust, implement EVM in another programming language first.
  */
 use ethereum_types::U256;
-use evm::{evm, Code};
+use evm::{ExecutionContext, Code};
 use serde::Deserialize;
 
 #[derive(Debug, Deserialize)]
@@ -35,7 +35,7 @@ struct Expect {
 }
 
 fn main() {
-    let text = std::fs::read_to_string("../evm.json").unwrap();
+    let text = std::fs::read_to_string("./evm.json").unwrap();
     let mut data: Vec<Evmtest> = serde_json::from_str(&text).unwrap();
 
     let total = data.len();
@@ -44,8 +44,9 @@ fn main() {
         println!("Test {} of {}: {}", index + 1, total, test.name);
 
         let code: Vec<u8> = hex::decode(&test.code.bin).unwrap();
+        let mut evm = ExecutionContext::new(code);
 
-        let result = evm(&code);
+        let result = evm.run();
 
         let expected_stack: Vec<U256> = test
             .expect
@@ -77,7 +78,7 @@ fn main() {
             println!("Progress: {}/{}\n\n", index, total);
             panic!("Test failed");
         }
-        println!("PASS");
+        println!("PASS\n");
     }
     println!("Congratulations!");
 }
