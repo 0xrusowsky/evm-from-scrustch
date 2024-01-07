@@ -33,10 +33,29 @@ impl Stack {
         self.items.pop().unwrap()
     }
 
+    pub fn swap(&mut self, depth: usize) {
+        let stack_depth = self.depth();
+        if depth >= stack_depth {
+            panic!("Stack underflow");
+        }
+
+        let index = stack_depth - depth - 1;
+        self.items.swap(index, stack_depth - 1);
+
+    }
+
     // Stack Getters
 
     pub fn items(&self) -> &Vec<U256> {
         &self.items
+    }
+
+    pub fn get_item(&self, depth: usize) -> Option<U256> {
+        if depth >= self.items.len() {
+            None
+        } else {
+            Some(self.items[depth])
+        }
     }
 
     pub fn deref_items(&self) -> Vec<U256> {

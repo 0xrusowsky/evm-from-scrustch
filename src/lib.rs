@@ -21,12 +21,19 @@ pub struct EvmResult {
     pub success: bool,
 }
 
+pub enum ExecutionStatus {
+    Active,
+    Stop,
+    Invalid,
+}
+
 pub struct ExecutionContext {
     code: Vec<u8>,
     stack: Stack,
     memory: Memory,
+    gas: usize,
     pc: usize,
-    stopped: bool,
+    status: ExecutionStatus,
 }
 
 impl ExecutionContext {
@@ -35,22 +42,34 @@ impl ExecutionContext {
             code,
             stack: Stack::new(),
             memory: Memory::new(),
+            gas: 0,
             pc: 0,
-            stopped: false,
+            status: ExecutionStatus::Active,
         }
     }
 
     pub fn run(&mut self) -> EvmResult {
-        while !self.stopped && self.pc < self.code.len(){
-            // println!("PC: {:#?}/{:#?}", self.pc, self.code.len()-1);
-            let opcode: Opcode = self.code[self.pc].try_into().unwrap();
-            let pc_delta = opcode.execute(self);
-            self.pc += pc_delta;
+        while self.pc < self.code.len(){
+            match self.status {
+                ExecutionStatus::Active => {
+                    let opcode: Opcode = self.code[self.pc].try_into().unwrap();
+                    let pc_delta = opcode.execute(self);
+                    self.pc += pc_delta;
+                },
+                ExecutionStatus::Stop => break,
+                ExecutionStatus::Invalid => break,
+            }
         }
+
+        let success = match self.status {
+            ExecutionStatus::Active => true,
+            ExecutionStatus::Stop => true,
+            ExecutionStatus::Invalid => false,
+        };
 
         EvmResult {
             stack: self.stack.deref_items(),
-            success: true,
+            success,
         }
     }
 }
