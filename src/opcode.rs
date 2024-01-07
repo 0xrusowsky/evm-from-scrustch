@@ -1,8 +1,8 @@
 use std::convert::TryFrom;
 use ethereum_types::{U256, U512};
-use std::ops::{Add, BitAnd, BitOr, BitXor, Not, Shl, Shr};
+use std::ops::{BitAnd, BitOr, BitXor, Not, Shl, Shr};
 
-use super::{ExecutionContext, ExecutionStatus};
+use super::ExecutionContext;
 
 pub enum Opcode {
     STOP,
@@ -207,15 +207,15 @@ impl TryFrom<u8> for Opcode {
 }
 
 impl Opcode {
-    pub fn execute(&self, ctx: &mut ExecutionContext) -> usize {
+    pub fn execute(&self, ctx: &mut ExecutionContext) -> (usize, bool) {
         match self {
             Opcode::STOP => {
                 // GAS
                 ctx.gas += self.fix_gas();
                 // OPERATION
-                ctx.status = ExecutionStatus::Stop;
-                // PC
-                1
+                ctx.stopped = true;
+                // PC + SUCCESS
+                (1, true)
             },
             Opcode::ADD => {
                 // STACK
@@ -227,8 +227,8 @@ impl Opcode {
                 // rely on U256 overflowing_add to handle overflow
                 let (result, _) = a.overflowing_add(b);
                 ctx.stack.push(result);
-                // PC
-                1
+                // PC + SUCCESS
+                (1, true)
             },
             Opcode::MUL => {
                 // STACK
@@ -240,8 +240,8 @@ impl Opcode {
                 // rely on U256 overflowing_mul to handle overflow
                 let (result, _) = a.overflowing_mul(b);
                 ctx.stack.push(result);
-                // PC
-                1
+                // PC + SUCCESS
+                (1, true)
             },
             Opcode::SUB => {
                 // STACK
@@ -253,8 +253,8 @@ impl Opcode {
                 // rely on U256 overflowing_sub to handle underflow
                 let (result, _) = a.overflowing_sub(b);
                 ctx.stack.push(result);
-                // PC
-                1
+                // PC + SUCCESS
+                (1, true)
             },
             Opcode::DIV => {
                 // STACK
@@ -269,8 +269,8 @@ impl Opcode {
                     a / b
                 };
                 ctx.stack.push(result);
-                // PC
-                1
+                // PC + SUCCESS
+                (1, true)
             },
             Opcode::SDIV => {
                 // STACK
@@ -288,8 +288,8 @@ impl Opcode {
                     if a_neg ^ b_neg { div.not().overflowing_add(U256::one()).0 } else { div }
                 };
                 ctx.stack.push(result);
-                // PC
-                1
+                // PC + SUCCESS
+                (1, true)
             },
             Opcode::MOD => {
                 // STACK
@@ -304,8 +304,8 @@ impl Opcode {
                     a % b
                 };
                 ctx.stack.push(result);
-                // PC
-                1
+                // PC + SUCCESS
+                (1, true)
             },
             Opcode::SMOD => {
                 // STACK
@@ -323,8 +323,8 @@ impl Opcode {
                     if a_neg | b_neg { div.not().overflowing_add(U256::one()).0 } else { div }
                 };
                 ctx.stack.push(result);
-                // PC
-                1
+                // PC + SUCCESS
+                (1, true)
             },
             Opcode::ADDMOD => {
                 // STACK
@@ -340,8 +340,8 @@ impl Opcode {
                     ((a + b) % c).try_into().unwrap()
                 };
                 ctx.stack.push(result);
-                // PC
-                1
+                // PC + SUCCESS
+                (1, true)
             },
             Opcode::MULMOD => {
                 // STACK
@@ -357,8 +357,8 @@ impl Opcode {
                     ((a * b) % c).try_into().unwrap()
                 };
                 ctx.stack.push(result);
-                // PC
-                1
+                // PC + SUCCESS
+                (1, true)
             },
             Opcode::EXP => {
                 // STACK
@@ -370,8 +370,8 @@ impl Opcode {
                 // OPERATION
                 let (result, _) = a.overflowing_pow(b);
                 ctx.stack.push(result);
-                // PC
-                1
+                // PC + SUCCESS
+                (1, true)
             },
             Opcode::SIGNEXTEND => {
                 // STACK
@@ -385,8 +385,8 @@ impl Opcode {
                     U256::MAX.shl(id_b).bitor(b)
                 } else { b };
                 ctx.stack.push(result);
-                // PC
-                1
+                // PC + SUCCESS
+                (1, true)
             },
             Opcode::LT => {
                 // STACK
@@ -397,8 +397,8 @@ impl Opcode {
                 // OPERATION
                 let result = if a < b { U256::one() } else { U256::zero() };
                 ctx.stack.push(result);
-                // PC
-                1
+                // PC + SUCCESS
+                (1, true)
             },
             Opcode::GT => {
                 // STACK
@@ -409,8 +409,8 @@ impl Opcode {
                 // OPERATION
                 let result = if a > b { U256::one() } else { U256::zero() };
                 ctx.stack.push(result);
-                // PC
-                1
+                // PC + SUCCESS
+                (1, true)
             },
             Opcode::SLT => {
                 // STACK
@@ -423,8 +423,8 @@ impl Opcode {
                 let (b_twos, _) = b.not().overflowing_add(U256::one());
                 let result = if a_twos > b_twos { U256::one() } else { U256::zero() };
                 ctx.stack.push(result);
-                // PC
-                1
+                // PC + SUCCESS
+                (1, true)
             },
             Opcode::SGT => {
                 // STACK
@@ -437,8 +437,8 @@ impl Opcode {
                 let (b_twos, _) = b.not().overflowing_add(U256::one());
                 let result = if a_twos < b_twos { U256::one() } else { U256::zero() };
                 ctx.stack.push(result);
-                // PC
-                1
+                // PC + SUCCESS
+                (1, true)
             },
             Opcode::EQ => {
                 // STACK
@@ -449,16 +449,16 @@ impl Opcode {
                 // OPERATION
                 let result = if a == b { U256::one() } else { U256::zero() };
                 ctx.stack.push(result);
-                // PC
-                1
+                // PC + SUCCESS
+                (1, true)
             },
             Opcode::ISZERO => {
                 // STACK
                 let a = ctx.stack.pop();
                 let result = if a == U256::zero() { U256::one() } else { U256::zero() };
                 ctx.stack.push(result);
-                // PC
-                1
+                // PC + SUCCESS
+                (1, true)
             },
             Opcode::AND => {
                 // STACK
@@ -469,8 +469,8 @@ impl Opcode {
                 // OPERATION
                 let result = a.bitand(b);
                 ctx.stack.push(result);
-                // PC
-                1
+                // PC + SUCCESS
+                (1, true)
             },
             Opcode::OR => {
                 // STACK
@@ -481,8 +481,8 @@ impl Opcode {
                 // OPERATION
                 let result = a.bitor(b);
                 ctx.stack.push(result);
-                // PC
-                1
+                // PC + SUCCESS
+                (1, true)
             },
             Opcode::XOR => {
                 // STACK
@@ -493,8 +493,8 @@ impl Opcode {
                 // OPERATION
                 let result = a.bitxor(b);
                 ctx.stack.push(result);
-                // PC
-                1
+                // PC + SUCCESS
+                (1, true)
             },
             Opcode::NOT => {
                 // STACK
@@ -504,8 +504,8 @@ impl Opcode {
                 // OPERATION
                 let result = a.not();
                 ctx.stack.push(result);
-                // PC
-                1
+                // PC + SUCCESS
+                (1, true)
             },
             Opcode::BYTE => {
                 // STACK
@@ -517,8 +517,8 @@ impl Opcode {
                 let a = a.as_usize();
                 let result = U256::from(if a < 32 {b.byte(31 - a)} else { 0 });
                 ctx.stack.push(result);
-                // PC
-                1
+                // PC + SUCCESS
+                (1, true)
             },
             Opcode::SHL => {
                 // STACK
@@ -529,8 +529,8 @@ impl Opcode {
                 // OPERATION
                 let result = b.shl(a.as_usize());
                 ctx.stack.push(result);
-                // PC
-                1
+                // PC + SUCCESS
+                (1, true)
             },
             Opcode::SHR => {
                 // STACK
@@ -541,8 +541,8 @@ impl Opcode {
                 // OPERATION
                 let result = b.shr(a.as_usize());
                 ctx.stack.push(result);
-                // PC
-                1
+                // PC + SUCCESS
+                (1, true)
             },
             Opcode::SAR => {
                 // STACK
@@ -561,8 +561,8 @@ impl Opcode {
                     b.shr(a.as_usize())
                 };
                 ctx.stack.push(result);
-                // PC
-                1
+                // PC + SUCCESS
+                (1, true)
             },
             // TODO
             Opcode::POP => {
@@ -570,15 +570,16 @@ impl Opcode {
                 ctx.gas += self.fix_gas();
                 // OPERATION
                 ctx.stack.pop();
-                1
+                // PC + SUCCESS
+                (1, true)
             },
             Opcode::PC => {
                 // GAS
                 ctx.gas += self.fix_gas();
                 // OPERATION
                 ctx.stack.push(U256::from(ctx.pc));
-                // PC
-                1
+                // PC + SUCCESS
+                (1, true)
             },
             Opcode::GAS => {
                 // GAS
@@ -586,8 +587,8 @@ impl Opcode {
                 // OPERATION
                 // ctx.stack.push(U256::from(ctx.gas));
                 ctx.stack.push(U256::max_value());
-                // PC
-                1
+                // PC + SUCCESS
+                (1, true)
             },
             Opcode::PUSH1 => {
                 // GAS
@@ -595,8 +596,8 @@ impl Opcode {
                 // OPERATION
                 let value = ctx.code[ctx.pc + 1];
                 ctx.stack.push(value.into());
-                // PC
-                2
+                // PC + SUCCESS
+                (2, true)
             },
             Opcode::PUSH2 => {
                 // GAS
@@ -604,8 +605,8 @@ impl Opcode {
                 // OPERATION
                 let value = &ctx.code[ctx.pc + 1..ctx.pc + 3];
                 ctx.stack.push(value.into());
-                // PC
-                3
+                // PC + SUCCESS
+                (3, true)
             },
             Opcode::PUSH3 => {
                 // GAS
@@ -613,8 +614,8 @@ impl Opcode {
                 // OPERATION
                 let value = &ctx.code[ctx.pc + 1..ctx.pc + 4];
                 ctx.stack.push(value.into());
-                // PC
-                4
+                // PC + SUCCESS
+                (4, true)
             },
             Opcode::PUSH4 => {
                 // GAS
@@ -622,8 +623,8 @@ impl Opcode {
                 // OPERATION
                 let value = &ctx.code[ctx.pc + 1..ctx.pc + 5];
                 ctx.stack.push(value.into());
-                // PC
-                5
+                // PC + SUCCESS
+                (5, true)
             },
             Opcode::PUSH5 => {
                 // GAS
@@ -631,8 +632,8 @@ impl Opcode {
                 // OPERATION
                 let value = &ctx.code[ctx.pc + 1..ctx.pc + 6];
                 ctx.stack.push(value.into());
-                // PC
-                6
+                // PC + SUCCESS
+                (6, true)
             },
             Opcode::PUSH6 => {
                 // GAS
@@ -640,8 +641,8 @@ impl Opcode {
                 // OPERATION
                 let value = &ctx.code[ctx.pc + 1..ctx.pc + 7];
                 ctx.stack.push(value.into());
-                // PC
-                7
+                // PC + SUCCESS
+                (7, true)
             },
             Opcode::PUSH7 => {
                 // GAS
@@ -649,8 +650,8 @@ impl Opcode {
                 // OPERATION
                 let value = &ctx.code[ctx.pc + 1..ctx.pc + 8];
                 ctx.stack.push(value.into());
-                // PC
-                8
+                // PC + SUCCESS
+                (8, true)
             },
             Opcode::PUSH8 => {
                 // GAS
@@ -658,8 +659,8 @@ impl Opcode {
                 // OPERATION
                 let value = &ctx.code[ctx.pc + 1..ctx.pc + 9];
                 ctx.stack.push(value.into());
-                // PC
-                9
+                // PC + SUCCESS
+                (9, true)
             },
             Opcode::PUSH9 => {
                 // GAS
@@ -667,8 +668,8 @@ impl Opcode {
                 // OPERATION
                 let value = &ctx.code[ctx.pc + 1..ctx.pc + 10];
                 ctx.stack.push(value.into());
-                // PC
-                10
+                // PC + SUCCESS
+                (10, true)
             },
             Opcode::PUSH10 => {
                 // GAS
@@ -676,8 +677,8 @@ impl Opcode {
                 // OPERATION
                 let value = &ctx.code[ctx.pc + 1..ctx.pc + 11];
                 ctx.stack.push(value.into());
-                // PC
-                11
+                // PC + SUCCESS
+                (11, true)
             },
             Opcode::PUSH11 => {
                 // GAS
@@ -685,8 +686,8 @@ impl Opcode {
                 // OPERATION
                 let value = &ctx.code[ctx.pc + 1..ctx.pc + 12];
                 ctx.stack.push(value.into());
-                // PC
-                12
+                // PC + SUCCESS
+                (12, true)
             },
             Opcode::PUSH12 => {
                 // GAS
@@ -694,8 +695,8 @@ impl Opcode {
                 // OPERATION
                 let value = &ctx.code[ctx.pc + 1..ctx.pc + 13];
                 ctx.stack.push(value.into());
-                // PC
-                13
+                // PC + SUCCESS
+                (13, true)
             },
             Opcode::PUSH13 => {
                 // GAS
@@ -703,8 +704,8 @@ impl Opcode {
                 // OPERATION
                 let value = &ctx.code[ctx.pc + 1..ctx.pc + 14];
                 ctx.stack.push(value.into());
-                // PC
-                14
+                // PC + SUCCESS
+                (14, true)
             },
             Opcode::PUSH14 => {
                 // GAS
@@ -712,8 +713,8 @@ impl Opcode {
                 // OPERATION
                 let value = &ctx.code[ctx.pc + 1..ctx.pc + 15];
                 ctx.stack.push(value.into());
-                // PC
-                15
+                // PC + SUCCESS
+                (15, true)
             },
             Opcode::PUSH15 => {
                 // GAS
@@ -721,8 +722,8 @@ impl Opcode {
                 // OPERATION
                 let value = &ctx.code[ctx.pc + 1..ctx.pc + 16];
                 ctx.stack.push(value.into());
-                // PC
-                16
+                // PC + SUCCESS
+                (16, true)
             },
             Opcode::PUSH16 => {
                 // GAS
@@ -730,8 +731,8 @@ impl Opcode {
                 // OPERATION
                 let value = &ctx.code[ctx.pc + 1..ctx.pc + 17];
                 ctx.stack.push(value.into());
-                // PC
-                17
+                // PC + SUCCESS
+                (17, true)
             },
             Opcode::PUSH17 => {
                 // GAS
@@ -739,8 +740,8 @@ impl Opcode {
                 // OPERATION
                 let value = &ctx.code[ctx.pc + 1..ctx.pc + 18];
                 ctx.stack.push(value.into());
-                // PC
-                18
+                // PC + SUCCESS
+                (18, true)
             },
             Opcode::PUSH18 => {
                 // GAS
@@ -748,8 +749,8 @@ impl Opcode {
                 // OPERATION
                 let value = &ctx.code[ctx.pc + 1..ctx.pc + 19];
                 ctx.stack.push(value.into());
-                // PC
-                19
+                // PC + SUCCESS
+                (19, true)
             },
             Opcode::PUSH19 => {
                 // GAS
@@ -757,8 +758,8 @@ impl Opcode {
                 // OPERATION
                 let value = &ctx.code[ctx.pc + 1..ctx.pc + 20];
                 ctx.stack.push(value.into());
-                // PC
-                20
+                // PC + SUCCESS
+                (20, true)
             },
             Opcode::PUSH20 => {
                 // GAS
@@ -766,8 +767,8 @@ impl Opcode {
                 // OPERATION
                 let value = &ctx.code[ctx.pc + 1..ctx.pc + 21];
                 ctx.stack.push(value.into());
-                // PC
-                21
+                // PC + SUCCESS
+                (21, true)
             },
             Opcode::PUSH21 => {
                 // GAS
@@ -775,8 +776,8 @@ impl Opcode {
                 // OPERATION
                 let value = &ctx.code[ctx.pc + 1..ctx.pc + 22];
                 ctx.stack.push(value.into());
-                // PC
-                22
+                // PC + SUCCESS
+                (22, true)
             },
             Opcode::PUSH22 => {
                 // GAS
@@ -784,8 +785,8 @@ impl Opcode {
                 // OPERATION
                 let value = &ctx.code[ctx.pc + 1..ctx.pc + 23];
                 ctx.stack.push(value.into());
-                // PC
-                23
+                // PC + SUCCESS
+                (23, true)
             },
             Opcode::PUSH23 => {
                 // GAS
@@ -793,8 +794,8 @@ impl Opcode {
                 // OPERATION
                 let value = &ctx.code[ctx.pc + 1..ctx.pc + 24];
                 ctx.stack.push(value.into());
-                // PC
-                24
+                // PC + SUCCESS
+                (24, true)
             },
             Opcode::PUSH24 => {
                 // GAS
@@ -802,8 +803,8 @@ impl Opcode {
                 // OPERATION
                 let value = &ctx.code[ctx.pc + 1..ctx.pc + 25];
                 ctx.stack.push(value.into());
-                // PC
-                25
+                // PC + SUCCESS
+                (25, true)
             },
             Opcode::PUSH25 => {
                 // GAS
@@ -811,8 +812,8 @@ impl Opcode {
                 // OPERATION
                 let value = &ctx.code[ctx.pc + 1..ctx.pc + 26];
                 ctx.stack.push(value.into());
-                // PC
-                26
+                // PC + SUCCESS
+                (26, true)
             },
             Opcode::PUSH26 => {
                 // GAS
@@ -820,8 +821,8 @@ impl Opcode {
                 // OPERATION
                 let value = &ctx.code[ctx.pc + 1..ctx.pc + 27];
                 ctx.stack.push(value.into());
-                // PC
-                27
+                // PC + SUCCESS
+                (27, true)
             },
             Opcode::PUSH27 => {
                 // GAS
@@ -829,8 +830,8 @@ impl Opcode {
                 // OPERATION
                 let value = &ctx.code[ctx.pc + 1..ctx.pc + 28];
                 ctx.stack.push(value.into());
-                // PC
-                28
+                // PC + SUCCESS
+                (28, true)
             },
             Opcode::PUSH28 => {
                 // GAS
@@ -838,8 +839,8 @@ impl Opcode {
                 // OPERATION
                 let value = &ctx.code[ctx.pc + 1..ctx.pc + 29];
                 ctx.stack.push(value.into());
-                // PC
-                29
+                // PC + SUCCESS
+                (29, true)
             },
             Opcode::PUSH29 => {
                 // GAS
@@ -847,8 +848,8 @@ impl Opcode {
                 // OPERATION
                 let value = &ctx.code[ctx.pc + 1..ctx.pc + 30];
                 ctx.stack.push(value.into());
-                // PC
-                30
+                // PC + SUCCESS
+                (30, true)
             },
             Opcode::PUSH30 => {
                 // GAS
@@ -856,8 +857,8 @@ impl Opcode {
                 // OPERATION
                 let value = &ctx.code[ctx.pc + 1..ctx.pc + 31];
                 ctx.stack.push(value.into());
-                // PC
-                31
+                // PC + SUCCESS
+                (31, true)
             },
             Opcode::PUSH31 => {
                 // GAS
@@ -865,8 +866,8 @@ impl Opcode {
                 // OPERATION
                 let value = &ctx.code[ctx.pc + 1..ctx.pc + 32];
                 ctx.stack.push(value.into());
-                // PC
-                32
+                // PC + SUCCESS
+                (32, true)
             },
             Opcode::PUSH32 => {
                 // GAS
@@ -874,205 +875,332 @@ impl Opcode {
                 // OPERATION
                 let value = &ctx.code[ctx.pc + 1..ctx.pc + 33];
                 ctx.stack.push(value.into());
-                // PC
-                33
+                // PC + SUCCESS
+                (33, true)
             },
             Opcode::DUP1 => {
+                // GAS
+                ctx.gas += self.fix_gas();
+                // OPERATION
                 let value = ctx.stack.get_item(ctx.stack.depth() - 1);
                 match value {
                     Some(value) => ctx.stack.push(value),
                     None => panic!("Stack underflow"),
                 };
-                1
+                // PC + SUCCESS
+                (1, true)
             },
             Opcode::DUP2 => {
+                // GAS
+                ctx.gas += self.fix_gas();
+                // OPERATION
                 let value = ctx.stack.get_item(ctx.stack.depth() - 2);
                 match value {
                     Some(value) => ctx.stack.push(value),
                     None => panic!("Stack underflow"),
                 };
-                1
+                // PC + SUCCESS
+                (1, true)
             },
             Opcode::DUP3 => {
+                // GAS
+                ctx.gas += self.fix_gas();
+                // OPERATION
                 let value = ctx.stack.get_item(ctx.stack.depth() - 3);
                 match value {
                     Some(value) => ctx.stack.push(value),
                     None => panic!("Stack underflow"),
                 };
-                1
+                // PC + SUCCESS
+                (1, true)
             },
             Opcode::DUP4 => {
+                // GAS
+                ctx.gas += self.fix_gas();
+                // OPERATION
                 let value = ctx.stack.get_item(ctx.stack.depth() - 4);
                 match value {
                     Some(value) => ctx.stack.push(value),
                     None => panic!("Stack underflow"),
                 };
-                1
+                // PC + SUCCESS
+                (1, true)
             },
             Opcode::DUP5 => {
+                // GAS
+                ctx.gas += self.fix_gas();
+                // OPERATION
                 let value = ctx.stack.get_item(ctx.stack.depth() - 5);
                 match value {
                     Some(value) => ctx.stack.push(value),
                     None => panic!("Stack underflow"),
                 };
-                1
+                // PC + SUCCESS
+                (1, true)
             },
             Opcode::DUP6 => {
+                // GAS
+                ctx.gas += self.fix_gas();
+                // OPERATION
                 let value = ctx.stack.get_item(ctx.stack.depth() - 6);
                 match value {
                     Some(value) => ctx.stack.push(value),
                     None => panic!("Stack underflow"),
                 };
-                1
+                // PC + SUCCESS
+                (1, true)
             },
             Opcode::DUP7 => {
+                // GAS
+                ctx.gas += self.fix_gas();
+                // OPERATION
                 let value = ctx.stack.get_item(ctx.stack.depth() - 7);
                 match value {
                     Some(value) => ctx.stack.push(value),
                     None => panic!("Stack underflow"),
                 };
-                1
+                // PC + SUCCESS
+                (1, true)
             },
             Opcode::DUP8 => {
+                // GAS
+                ctx.gas += self.fix_gas();
+                // OPERATION
                 let value = ctx.stack.get_item(ctx.stack.depth() - 8);
                 match value {
                     Some(value) => ctx.stack.push(value),
                     None => panic!("Stack underflow"),
                 };
-                1
+                // PC + SUCCESS
+                (1, true)
             },
             Opcode::DUP9 => {
+                // GAS
+                ctx.gas += self.fix_gas();
+                // OPERATION
                 let value = ctx.stack.get_item(ctx.stack.depth() - 9);
                 match value {
                     Some(value) => ctx.stack.push(value),
                     None => panic!("Stack underflow"),
                 };
-                1
+                // PC + SUCCESS
+                (1, true)
             },
             Opcode::DUP10 => {
+                // GAS
+                ctx.gas += self.fix_gas();
+                // OPERATION
                 let value = ctx.stack.get_item(ctx.stack.depth() - 10);
                 match value {
                     Some(value) => ctx.stack.push(value),
                     None => panic!("Stack underflow"),
                 };
-                1
+                // PC + SUCCESS
+                (1, true)
             },
             Opcode::DUP11 => {
+                // GAS
+                ctx.gas += self.fix_gas();
+                // OPERATION
                 let value = ctx.stack.get_item(ctx.stack.depth() - 11);
                 match value {
                     Some(value) => ctx.stack.push(value),
                     None => panic!("Stack underflow"),
                 };
-                1
+                // PC + SUCCESS
+                (1, true)
             },
             Opcode::DUP12 => {
+                // GAS
+                ctx.gas += self.fix_gas();
+                // OPERATION
                 let value = ctx.stack.get_item(ctx.stack.depth() - 12);
                 match value {
                     Some(value) => ctx.stack.push(value),
                     None => panic!("Stack underflow"),
                 };
-                1
+                // PC + SUCCESS
+                (1, true)
             },
             Opcode::DUP13 => {
+                // GAS
+                ctx.gas += self.fix_gas();
+                // OPERATION
                 let value = ctx.stack.get_item(ctx.stack.depth() - 13);
                 match value {
                     Some(value) => ctx.stack.push(value),
                     None => panic!("Stack underflow"),
                 };
-                1
+                // PC + SUCCESS
+                (1, true)
             },
             Opcode::DUP14 => {
+                // GAS
+                ctx.gas += self.fix_gas();
+                // OPERATION
                 let value = ctx.stack.get_item(ctx.stack.depth() - 14);
                 match value {
                     Some(value) => ctx.stack.push(value),
                     None => panic!("Stack underflow"),
                 };
-                1
+                // PC + SUCCESS
+                (1, true)
             },
             Opcode::DUP15 => {
+                // GAS
+                ctx.gas += self.fix_gas();
+                // OPERATION
                 let value = ctx.stack.get_item(ctx.stack.depth() - 15);
                 match value {
                     Some(value) => ctx.stack.push(value),
                     None => panic!("Stack underflow"),
                 };
-                1
+                // PC + SUCCESS
+                (1, true)
             },
             Opcode::DUP16 => {
+                // GAS
+                ctx.gas += self.fix_gas();
+                // OPERATION
                 let value = ctx.stack.get_item(ctx.stack.depth() - 16);
                 match value {
                     Some(value) => ctx.stack.push(value),
                     None => panic!("Stack underflow"),
                 };
-                1
+                // PC + SUCCESS
+                (1, true)
             },
             Opcode::SWAP1 => {
+                // GAS
+                ctx.gas += self.fix_gas();
+                // OPERATION
                 ctx.stack.swap(1);
-                1
+                // PC + SUCCESS
+                (1, true)
             },
             Opcode::SWAP2 => {
+                // GAS
+                ctx.gas += self.fix_gas();
+                // OPERATION
                 ctx.stack.swap(2);
-                1
+                // PC + SUCCESS
+                (1, true)
             },
             Opcode::SWAP3 => {
+                // GAS
+                ctx.gas += self.fix_gas();
+                // OPERATION
                 ctx.stack.swap(3);
-                1
+                // PC + SUCCESS
+                (1, true)
             },
             Opcode::SWAP4 => {
+                // GAS
+                ctx.gas += self.fix_gas();
+                // OPERATION
                 ctx.stack.swap(4);
-                1
+                // PC + SUCCESS
+                (1, true)
             },
             Opcode::SWAP5 => {
+                // GAS
+                ctx.gas += self.fix_gas();
+                // OPERATION
                 ctx.stack.swap(5);
-                1
+                // PC + SUCCESS
+                (1, true)
             },
             Opcode::SWAP6 => {
+                // GAS
+                ctx.gas += self.fix_gas();
+                // OPERATION
                 ctx.stack.swap(6);
-                1
+                // PC + SUCCESS
+                (1, true)
             },
             Opcode::SWAP7 => {
+                // GAS
+                ctx.gas += self.fix_gas();
+                // OPERATION
                 ctx.stack.swap(7);
-                1
+                // PC + SUCCESS
+                (1, true)
             },
             Opcode::SWAP8 => {
+                // GAS
+                ctx.gas += self.fix_gas();
+                // OPERATION
                 ctx.stack.swap(8);
-                1
+                // PC + SUCCESS
+                (1, true)
             },
             Opcode::SWAP9 => {
+                // GAS
+                ctx.gas += self.fix_gas();
+                // OPERATION
                 ctx.stack.swap(9);
-                1
+                // PC + SUCCESS
+                (1, true)
             },
             Opcode::SWAP10 => {
+                // GAS
+                ctx.gas += self.fix_gas();
+                // OPERATION
                 ctx.stack.swap(10);
-                1
+                // PC + SUCCESS
+                (1, true)
             },
             Opcode::SWAP11 => {
+                // GAS
+                ctx.gas += self.fix_gas();
+                // OPERATION
                 ctx.stack.swap(11);
-                1
+                // PC + SUCCESS
+                (1, true)
             },
             Opcode::SWAP12 => {
+                // GAS
+                ctx.gas += self.fix_gas();
+                // OPERATION
                 ctx.stack.swap(12);
-                1
+                // PC + SUCCESS
+                (1, true)
             },
             Opcode::SWAP13 => {
+                // GAS
+                ctx.gas += self.fix_gas();
+                // OPERATION
                 ctx.stack.swap(13);
-                1
+                // PC + SUCCESS
+                (1, true)
             },
             Opcode::SWAP14 => {
+                // GAS
+                ctx.gas += self.fix_gas();
+                // OPERATION
                 ctx.stack.swap(14);
-                1
+                // PC + SUCCESS
+                (1, true)
             },
             Opcode::SWAP15 => {
+                // GAS
+                ctx.gas += self.fix_gas();
+                // OPERATION
                 ctx.stack.swap(15);
-                1
+                // PC + SUCCESS
+                (1, true)
             },
             Opcode::SWAP16 => {
+                // GAS
+                ctx.gas += self.fix_gas();
+                // OPERATION
                 ctx.stack.swap(16);
-                1
+                // PC + SUCCESS
+                (1, true)
             },
             Opcode::INVALID => {
-                println!("HERE");
-                ctx.status = ExecutionStatus::Invalid;
-                1
+                // PC + SUCCESS
+                (1, false)
             },
         }
     }

@@ -21,19 +21,13 @@ pub struct EvmResult {
     pub success: bool,
 }
 
-pub enum ExecutionStatus {
-    Active,
-    Stop,
-    Invalid,
-}
-
 pub struct ExecutionContext {
     code: Vec<u8>,
     stack: Stack,
     memory: Memory,
-    gas: usize,
     pc: usize,
-    status: ExecutionStatus,
+    gas: usize,
+    stopped: bool,
 }
 
 impl ExecutionContext {
@@ -42,30 +36,28 @@ impl ExecutionContext {
             code,
             stack: Stack::new(),
             memory: Memory::new(),
-            gas: 0,
             pc: 0,
-            status: ExecutionStatus::Active,
+            gas: 0,
+            stopped: false,
         }
     }
 
     pub fn run(&mut self) -> EvmResult {
-        while self.pc < self.code.len(){
-            match self.status {
-                ExecutionStatus::Active => {
-                    let opcode: Opcode = self.code[self.pc].try_into().unwrap();
-                    let pc_delta = opcode.execute(self);
-                    self.pc += pc_delta;
-                },
-                ExecutionStatus::Stop => break,
-                ExecutionStatus::Invalid => break,
+        let mut success = true;
+        loop {
+            // Check execution conditions
+            if !success || self.stopped || self.pc >= self.code.len() {
+                break;
             }
+        
+            // Process the next opcode
+            let opcode: Opcode = self.code[self.pc].try_into().unwrap();
+            let (pc_delta, opcode_success) = opcode.execute(self);
+        
+            // Update control variables
+            self.pc += pc_delta;
+            success = opcode_success;
         }
-
-        let success = match self.status {
-            ExecutionStatus::Active => true,
-            ExecutionStatus::Stop => true,
-            ExecutionStatus::Invalid => false,
-        };
 
         EvmResult {
             stack: self.stack.deref_items(),
