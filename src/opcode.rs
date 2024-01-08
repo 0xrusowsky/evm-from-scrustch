@@ -32,9 +32,13 @@ pub enum Opcode {
     SHR,
     SAR,
     POP,
+    MLOAD,
+    MSTORE,
+    MSTORE8,
     JUMP,
     JUMPI,
     PC,
+    MSIZE,
     GAS,
     JUMPDEST,
     PUSH1,
@@ -136,9 +140,13 @@ impl TryFrom<u8> for Opcode {
             0x1C => Ok(Opcode::SHR),
             0x1D => Ok(Opcode::SAR),
             0x50 => Ok(Opcode::POP),
+            0x51 => Ok(Opcode::MLOAD),
+            0x52 => Ok(Opcode::MSTORE),
+            0x53 => Ok(Opcode::MSTORE8),
             0x56 => Ok(Opcode::JUMP),
             0x57 => Ok(Opcode::JUMPI),
             0x58 => Ok(Opcode::PC),
+            0x59 => Ok(Opcode::MSIZE),
             0x5A => Ok(Opcode::GAS),
             0x5B => Ok(Opcode::JUMPDEST),
             0x60 => Ok(Opcode::PUSH1),
@@ -633,6 +641,46 @@ impl Opcode {
                 // SUCCESS
                 true
             },
+            Opcode::MLOAD => {
+                // STACK
+                let offset = ctx.stack.pop();
+                // GAS
+                ctx.gas += self.fix_gas() * ctx.memory.expansion(offset.as_usize(), 32);
+                // OPERATION
+                let value = ctx.memory.load(offset.as_usize());
+                ctx.stack.push(U256::from_big_endian(value));
+                // PC
+                ctx.pc += 1;
+                // SUCCESS
+                true
+            }
+            Opcode::MSTORE => {
+                // STACK
+                let offset = ctx.stack.pop();
+                let value = ctx.stack.pop();
+                // GAS
+                ctx.gas += self.fix_gas() * ctx.memory.expansion(offset.as_usize(), 32);
+                // OPERATION
+                ctx.memory.store(offset.as_usize(), &<[u8; 32]>::from(value));
+                // PC
+                ctx.pc += 1;
+                // SUCCESS
+                true
+            }
+            Opcode::MSTORE8 => {
+                // STACK
+                let offset = ctx.stack.pop();
+                let value = ctx.stack.pop();
+                println!("offset: {:#X}, value: {:#X}", offset, value.byte(0));
+                // GAS
+                ctx.gas += self.fix_gas() * ctx.memory.expansion(offset.as_usize(), 1);
+                // OPERATION
+                ctx.memory.store8(offset.as_usize(), value.byte(0));
+                // PC
+                ctx.pc += 1;
+                // SUCCESS
+                true
+            }
             Opcode::JUMP => {
                 // STACK
                 let a = ctx.stack.pop();
@@ -683,6 +731,16 @@ impl Opcode {
                 ctx.gas += self.fix_gas();
                 // OPERATION
                 ctx.stack.push(U256::from(ctx.pc));
+                // PC
+                ctx.pc += 1;
+                // SUCCESS
+                true
+            },
+            Opcode::MSIZE => {
+                // GAS
+                ctx.gas += self.fix_gas();
+                // OPERATION
+                ctx.stack.push(U256::from(ctx.memory.size()));
                 // PC
                 ctx.pc += 1;
                 // SUCCESS
@@ -1465,8 +1523,12 @@ impl Opcode {
             // Gas: Base
             Opcode::POP => 2,
             Opcode::PC => 2,
+            Opcode::MSIZE => 2,
             Opcode::GAS => 2,
             // Gas: Verylow
+            Opcode::MLOAD => 3,
+            Opcode::MSTORE => 3,
+            Opcode::MSTORE8 => 3,
             Opcode::ADD => 3,
             Opcode::SUB => 3,
             Opcode::LT => 3,
@@ -1574,7 +1636,14 @@ fn validate_jumpdest(code: &Vec<u8>, pc_new: usize) -> bool {
         Opcode::JUMPDEST => {
             // Ensure valid jump destination
             match code[pc_new - 1].try_into().unwrap() {
-                Opcode::PUSH1 | Opcode::PUSH2 | Opcode::PUSH3 | Opcode::PUSH4 | Opcode::PUSH5 | Opcode::PUSH6 | Opcode::PUSH7 | Opcode::PUSH8 | Opcode::PUSH9 | Opcode::PUSH10 | Opcode::PUSH11 | Opcode::PUSH12 | Opcode::PUSH13 | Opcode::PUSH14 | Opcode::PUSH15 | Opcode::PUSH16 | Opcode::PUSH17 | Opcode::PUSH18 | Opcode::PUSH19 | Opcode::PUSH20 | Opcode::PUSH21 | Opcode::PUSH22 | Opcode::PUSH23 | Opcode::PUSH24 | Opcode::PUSH25 | Opcode::PUSH26 | Opcode::PUSH27 | Opcode::PUSH28 | Opcode::PUSH29 | Opcode::PUSH30 | Opcode::PUSH31 | Opcode::PUSH32 => {
+                Opcode::PUSH1  | Opcode::PUSH2  | Opcode::PUSH3  | Opcode::PUSH4  |
+                Opcode::PUSH5  | Opcode::PUSH6  | Opcode::PUSH7  | Opcode::PUSH8  |
+                Opcode::PUSH9  | Opcode::PUSH10 | Opcode::PUSH11 | Opcode::PUSH12 |
+                Opcode::PUSH13 | Opcode::PUSH14 | Opcode::PUSH15 | Opcode::PUSH16 |
+                Opcode::PUSH17 | Opcode::PUSH18 | Opcode::PUSH19 | Opcode::PUSH20 |
+                Opcode::PUSH21 | Opcode::PUSH22 | Opcode::PUSH23 | Opcode::PUSH24 |
+                Opcode::PUSH25 | Opcode::PUSH26 | Opcode::PUSH27 | Opcode::PUSH28 |
+                Opcode::PUSH29 | Opcode::PUSH30 | Opcode::PUSH31 | Opcode::PUSH32 => {
                     false
                 },
                 _ => true,
