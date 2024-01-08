@@ -52,10 +52,9 @@ impl ExecutionContext {
         
             // Process the next opcode
             let opcode: Opcode = self.code[self.pc].try_into().unwrap();
-            let (pc_delta, opcode_success) = opcode.execute(self);
+            let opcode_success = opcode.execute(self);
         
             // Update control variables
-            self.pc += pc_delta;
             success = opcode_success;
         }
 
