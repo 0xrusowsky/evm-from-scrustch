@@ -1,4 +1,5 @@
 use std::convert::TryFrom;
+use sha3::{Digest, Keccak256};
 use ethereum_types::{U256, U512};
 use std::ops::{BitAnd, BitOr, BitXor, Not, Shl, Shr};
 
@@ -31,6 +32,8 @@ pub enum Opcode {
     SHL,
     SHR,
     SAR,
+    SHA3,
+    ADDRESS,
     POP,
     MLOAD,
     MSTORE,
@@ -139,6 +142,8 @@ impl TryFrom<u8> for Opcode {
             0x1B => Ok(Opcode::SHL),
             0x1C => Ok(Opcode::SHR),
             0x1D => Ok(Opcode::SAR),
+            0x20 => Ok(Opcode::SHA3),
+            0x30 => Ok(Opcode::ADDRESS),
             0x50 => Ok(Opcode::POP),
             0x51 => Ok(Opcode::MLOAD),
             0x52 => Ok(Opcode::MSTORE),
@@ -630,7 +635,30 @@ impl Opcode {
                 // SUCCESS
                 true
             },
-            // TODO
+            Opcode::SHA3 => {
+                // STACK
+                let offset = ctx.stack.pop();
+                let size = ctx.stack.pop();
+                // GAS
+                ctx.gas += self.fix_gas() + 6 * (size.as_usize() + 31) / 32;
+                // // OPERATION
+                let result = U256::from(Keccak256::digest(ctx.memory.load(offset.as_usize(), size.as_usize())).as_slice());
+                ctx.stack.push(result);
+                // PC
+                ctx.pc += 1;
+                // SUCCESS
+                true
+            },
+            Opcode::ADDRESS => {
+                // // GAS
+                // ctx.gas += self.fix_gas();
+                // // OPERATION
+                // ctx.stack.push(ctx.address);
+                // PC
+                ctx.pc += 1;
+                // SUCCESS
+                true
+            },
             Opcode::POP => {
                 // GAS
                 ctx.gas += self.fix_gas();
@@ -647,7 +675,7 @@ impl Opcode {
                 // GAS
                 ctx.gas += self.fix_gas() * ctx.memory.expansion(offset.as_usize(), 32);
                 // OPERATION
-                let value = ctx.memory.load(offset.as_usize());
+                let value = ctx.memory.load(offset.as_usize(), 32);
                 ctx.stack.push(U256::from_big_endian(value));
                 // PC
                 ctx.pc += 1;
@@ -675,7 +703,7 @@ impl Opcode {
                 // GAS
                 ctx.gas += self.fix_gas() * ctx.memory.expansion(offset.as_usize(), 1);
                 // OPERATION
-                ctx.memory.store8(offset.as_usize(), value.byte(0));
+                ctx.memory.store(offset.as_usize(), &[value.byte(0)]);
                 // PC
                 ctx.pc += 1;
                 // SUCCESS
@@ -1521,6 +1549,7 @@ impl Opcode {
             // Gas: Jumpdest
             Opcode::JUMPDEST => 1,
             // Gas: Base
+            Opcode::ADDRESS => 2,
             Opcode::POP => 2,
             Opcode::PC => 2,
             Opcode::MSIZE => 2,
@@ -1626,6 +1655,8 @@ impl Opcode {
             // Gas: Copy
             // Gas: Call
             // Gas: Extaccount
+            // Gas: Keccak
+            Opcode::SHA3 => 30,
         }
     }
 }

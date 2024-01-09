@@ -6,47 +6,36 @@ impl Memory {
         Memory(Vec::new())
     }
 
-    pub fn load(&mut self, offset: usize) -> &[u8] {
-        // if out of bounds, expand the memory
-        if offset + 32 > self.0.len() {
-            self.0.resize(offset + 32, 0);
-        }
-        &self.0[offset..offset + 32]
-    }
-
-    pub fn store(&mut self, offset: usize, value: &[u8]) {
-        let words = value.len() / 32;
-        if offset + words * 32 > self.0.len() {
-            self.0.resize(offset + words * 32, 0);
-        }
-        self.0[offset..offset + words * 32].copy_from_slice(value);
-    }
-
-    pub fn store8(&mut self, offset: usize, value: u8) {
-        if offset + 1 > self.0.len() {
-            self.0.resize(offset + 1, 0);
-        }
-        self.0[offset] = value;
+    pub fn len(&self) -> usize {
+        self.0.len()
     }
 
     pub fn size(&self) -> usize {
-        let len = self.0.len();
-        if len == 0 {
-            return 0;
-        }
-        if len % 32 != 0 {
-            (len / 32 + 1) * 32
-        } else {
-            len / 32 * 32
-        }
+        ((self.len() + 31 ) / 32) * 32
     }
 
     pub fn expansion(&self, offset: usize, size: usize) -> usize {
-        let len = self.0.len();
-        if offset + size > len {
-            offset + size - len
+        if offset + size > self.len() {
+            offset + size - self.len()
         } else {
             0
         }
+    }
+
+    pub fn load(&mut self, offset: usize, size: usize) -> &[u8] {
+        // if out of bounds, expand the memory
+        if offset + size > self.0.len() {
+            self.0.resize(offset + size, 0);
+        }
+        &self.0[offset..offset + size]
+    }
+
+    pub fn store(&mut self, offset: usize, data: &[u8]) {
+        // if out of bounds, expand the memory
+        let end = offset + data.len();
+        if end > self.len() {
+            self.0.resize(((end + 31) / 32) * 32, 0);
+        }
+        self.0[offset..offset + data.len()].copy_from_slice(data);
     }
 }
