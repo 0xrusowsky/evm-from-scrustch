@@ -1,12 +1,15 @@
 use ethereum_types::U256;
 use serde::Deserialize;
 
+pub mod utils;
 pub mod stack;
 use crate::stack::Stack;
 pub mod memory;
 use crate::memory::Memory;
 pub mod opcode;
 use crate::opcode::Opcode;
+pub mod call;
+pub use crate::call::Call;
 
 #[derive(Debug, Deserialize, Clone)]
 pub struct Code {
@@ -22,6 +25,7 @@ pub struct EvmResult {
 }
 
 pub struct ExecutionContext {
+    call: Call,
     code: Vec<u8>,
     stack: Stack,
     memory: Memory,
@@ -31,8 +35,9 @@ pub struct ExecutionContext {
 }
 
 impl ExecutionContext {
-    pub fn new(code: Vec<u8>) -> Self {
+    pub fn new(call: Call, code: Vec<u8>) -> Self {
         Self {
+            call,
             code,
             stack: Stack::new(),
             memory: Memory::new(),

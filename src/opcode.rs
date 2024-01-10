@@ -34,6 +34,10 @@ pub enum Opcode {
     SAR,
     SHA3,
     ADDRESS,
+    ORIGIN,
+    CALLER,
+    GASPRICE,
+    BASEFEE,
     POP,
     MLOAD,
     MSTORE,
@@ -144,6 +148,10 @@ impl TryFrom<u8> for Opcode {
             0x1D => Ok(Opcode::SAR),
             0x20 => Ok(Opcode::SHA3),
             0x30 => Ok(Opcode::ADDRESS),
+            0x32 => Ok(Opcode::ORIGIN),
+            0x33 => Ok(Opcode::CALLER),
+            0x3A => Ok(Opcode::GASPRICE),
+            0x48 => Ok(Opcode::BASEFEE),
             0x50 => Ok(Opcode::POP),
             0x51 => Ok(Opcode::MLOAD),
             0x52 => Ok(Opcode::MSTORE),
@@ -650,10 +658,50 @@ impl Opcode {
                 true
             },
             Opcode::ADDRESS => {
-                // // GAS
-                // ctx.gas += self.fix_gas();
-                // // OPERATION
-                // ctx.stack.push(ctx.address);
+                // GAS
+                ctx.gas += self.fix_gas();
+                // OPERATION
+                ctx.stack.push(ctx.call.recipient().to_u256());
+                // PC
+                ctx.pc += 1;
+                // SUCCESS
+                true
+            },
+            Opcode::ORIGIN => {
+                // GAS
+                ctx.gas += self.fix_gas();
+                // OPERATION
+                ctx.stack.push(ctx.call.originator().to_u256());
+                // PC
+                ctx.pc += 1;
+                // SUCCESS
+                true
+            },
+            Opcode::CALLER => {
+                // GAS
+                ctx.gas += self.fix_gas();
+                // OPERATION
+                ctx.stack.push(ctx.call.sender().to_u256());
+                // PC
+                ctx.pc += 1;
+                // SUCCESS
+                true
+            },
+            Opcode::GASPRICE => {
+                // GAS
+                ctx.gas += self.fix_gas();
+                // OPERATION
+                ctx.stack.push(ctx.call.gas_price());
+                // PC
+                ctx.pc += 1;
+                // SUCCESS
+                true
+            },
+            Opcode::BASEFEE => {
+                // GAS
+                ctx.gas += self.fix_gas();
+                // OPERATION
+                todo!();
                 // PC
                 ctx.pc += 1;
                 // SUCCESS
@@ -1550,6 +1598,12 @@ impl Opcode {
             Opcode::JUMPDEST => 1,
             // Gas: Base
             Opcode::ADDRESS => 2,
+            // TODO: start
+            Opcode::ORIGIN => 2,
+            Opcode::CALLER => 2,
+            Opcode::GASPRICE => 2,
+            Opcode::BASEFEE => 2,
+            // TODO: end
             Opcode::POP => 2,
             Opcode::PC => 2,
             Opcode::MSIZE => 2,
