@@ -36,6 +36,12 @@ pub enum Opcode {
     ADDRESS,
     ORIGIN,
     CALLER,
+    CALLVALUE,
+    CALLDATALOAD,
+    CALLDATASIZE,
+    CALLDATACOPY,
+    CODESIZE,
+    CODECOPY,
     GASPRICE,
     BASEFEE,
     POP,
@@ -150,6 +156,12 @@ impl TryFrom<u8> for Opcode {
             0x30 => Ok(Opcode::ADDRESS),
             0x32 => Ok(Opcode::ORIGIN),
             0x33 => Ok(Opcode::CALLER),
+            0x34 => Ok(Opcode::CALLVALUE),
+            0x35 => Ok(Opcode::CALLDATALOAD),
+            0x36 => Ok(Opcode::CALLDATASIZE),
+            0x37 => Ok(Opcode::CALLDATACOPY),
+            0x38 => Ok(Opcode::CODESIZE),
+            0x39 => Ok(Opcode::CODECOPY),
             0x3A => Ok(Opcode::GASPRICE),
             0x48 => Ok(Opcode::BASEFEE),
             0x50 => Ok(Opcode::POP),
@@ -682,6 +694,114 @@ impl Opcode {
                 ctx.gas += self.fix_gas();
                 // OPERATION
                 ctx.stack.push(ctx.call.sender().to_u256());
+                // PC
+                ctx.pc += 1;
+                // SUCCESS
+                true
+            },
+            Opcode::CALLVALUE => {
+                // GAS
+                ctx.gas += self.fix_gas();
+                // OPERATION
+                ctx.stack.push(ctx.call.value());
+                // PC
+                ctx.pc += 1;
+                // SUCCESS
+                true
+            },
+            Opcode::CALLDATALOAD => {
+                // STACK
+                let offset = ctx.stack.pop().as_usize();
+                // GAS
+                ctx.gas += self.fix_gas();
+                // OPERATION
+                let mut result = [0u8; 32];
+                let calldata = ctx.call.data();
+                let (end, len) = if offset + 32 > calldata.len() {
+                    (32, 32 - offset)
+                } else {
+                    (offset + 32, 32)
+                };
+                if len == 32 {
+                    result.copy_from_slice(&calldata[offset..end]);
+                } else {
+                    result[..len].copy_from_slice(&calldata[offset..end]);
+                }
+                ctx.stack.push(U256::from_big_endian(&result));
+                // PC
+                ctx.pc += 1;
+                // SUCCESS
+                true
+            },
+            Opcode::CALLDATASIZE => {
+                // GAS
+                ctx.gas += self.fix_gas();
+                // OPERATION
+                let result = ctx.call.data_size();
+                ctx.stack.push(result.into());
+                // PC
+                ctx.pc += 1;
+                // SUCCESS
+                true
+            },
+            Opcode::CALLDATACOPY => {
+                // STACK
+                let memory_offset = ctx.stack.pop().as_usize();
+                let offset = ctx.stack.pop().as_usize();
+                let size = ctx.stack.pop().as_usize();
+                // GAS
+                ctx.gas += self.fix_gas();
+                // OPERATION
+                let mut result = vec![0u8; size];
+                let calldata = ctx.call.data();
+                let (end, len) = if offset + size > calldata.len() {
+                    (size, size - offset)
+                } else {
+                    (offset + size, size)
+                };
+                if len == size {
+                    result.copy_from_slice(&calldata[offset..end]);
+                } else {
+                    result[..len].copy_from_slice(&calldata[offset..end]);
+                }
+                ctx.memory.store(memory_offset, &result);
+                // PC
+                ctx.pc += 1;
+                // SUCCESS
+                true
+            },
+            Opcode::CODESIZE => {
+                // GAS
+                ctx.gas += self.fix_gas();
+                // OPERATION
+                ctx.stack.push(ctx.code_size().into());
+                // PC
+                ctx.pc += 1;
+                // SUCCESS
+                true
+            },
+            Opcode::CODECOPY => {
+                // STACK
+                let memory_offset = ctx.stack.pop().as_usize();
+                let offset = ctx.stack.pop().as_usize();
+                let mut size = ctx.stack.pop().as_usize();
+                if size > ctx.code_size() { size = ctx.code_size() }
+                // GAS
+                ctx.gas += self.fix_gas();
+                // OPERATION
+                let mut result = vec![0u8; size];
+                let code = ctx.code();
+                let (end, len) = if offset + size > ctx.code_size() {
+                    (size, size - offset)
+                } else {
+                    (offset + size, size)
+                };
+                if len == size {
+                    result.copy_from_slice(&code[offset..end]);
+                } else {
+                    result[..len].copy_from_slice(&code[offset..end]);
+                }
+                ctx.memory.store(memory_offset, &result);
                 // PC
                 ctx.pc += 1;
                 // SUCCESS
@@ -1603,6 +1723,12 @@ impl Opcode {
             Opcode::CALLER => 2,
             Opcode::GASPRICE => 2,
             Opcode::BASEFEE => 2,
+            Opcode::CALLVALUE => 2,
+            Opcode::CALLDATALOAD => 2,
+            Opcode::CALLDATASIZE => 2,
+            Opcode::CALLDATACOPY => 2,
+            Opcode::CODESIZE => 2,
+            Opcode::CODECOPY => 2,
             // TODO: end
             Opcode::POP => 2,
             Opcode::PC => 2,

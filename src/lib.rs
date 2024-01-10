@@ -47,6 +47,14 @@ impl ExecutionContext {
         }
     }
 
+    pub fn code_size(&self) -> usize {
+        self.code.len()
+    }
+
+    pub fn code(&self) -> &[u8] {
+        &self.code
+    }
+
     pub fn run(&mut self) -> EvmResult {
         let mut success = true;
         loop {
