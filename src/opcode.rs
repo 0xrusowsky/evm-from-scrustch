@@ -3,6 +3,8 @@ use sha3::{Digest, Keccak256};
 use ethereum_types::{U256, U512};
 use std::ops::{BitAnd, BitOr, BitXor, Not, Shl, Shr};
 
+use crate::utils::u64_to_u256;
+
 use super::ExecutionContext;
 
 pub enum Opcode {
@@ -43,6 +45,14 @@ pub enum Opcode {
     CODESIZE,
     CODECOPY,
     GASPRICE,
+    BLOCKHASH,
+    COINBASE,
+    TIMESTAMP,
+    NUMBER,
+    PEVRANDAO,
+    GASLIMIT,
+    CHAINID,
+    SELFBALANCE,
     BASEFEE,
     POP,
     MLOAD,
@@ -163,6 +173,14 @@ impl TryFrom<u8> for Opcode {
             0x38 => Ok(Opcode::CODESIZE),
             0x39 => Ok(Opcode::CODECOPY),
             0x3A => Ok(Opcode::GASPRICE),
+            0x40 => Ok(Opcode::BLOCKHASH),
+            0x41 => Ok(Opcode::COINBASE),
+            0x42 => Ok(Opcode::TIMESTAMP),
+            0x43 => Ok(Opcode::NUMBER),
+            0x44 => Ok(Opcode::PEVRANDAO),
+            0x45 => Ok(Opcode::GASLIMIT),
+            0x46 => Ok(Opcode::CHAINID),
+            0x47 => Ok(Opcode::SELFBALANCE),
             0x48 => Ok(Opcode::BASEFEE),
             0x50 => Ok(Opcode::POP),
             0x51 => Ok(Opcode::MLOAD),
@@ -817,11 +835,110 @@ impl Opcode {
                 // SUCCESS
                 true
             },
+            Opcode::BLOCKHASH => {
+                // STACK
+                let block_number = ctx.stack.pop();
+                // GAS
+                ctx.gas += self.fix_gas();
+                // OPERATION
+                // let result = match ctx.block.block_hash(block_number) {
+                //     Some(hash) => hash,
+                //     None => U256::zero(),
+                // };
+                // ctx.stack.push(result);
+                // PC
+                ctx.pc += 1;
+                // SUCCESS
+                true
+            },
+            Opcode::COINBASE => {
+                // GAS
+                ctx.gas += self.fix_gas();
+                // OPERATION
+                let result = match ctx.block.beneficiary() {
+                    Some(coinbase) => coinbase.to_u256(),
+                    None => U256::zero(),
+                };
+                ctx.stack.push(result);
+                // PC
+                ctx.pc += 1;
+                // SUCCESS
+                true
+            },
+            Opcode::TIMESTAMP => {
+                // GAS
+                ctx.gas += self.fix_gas();
+                // OPERATION
+                ctx.stack.push(ctx.block.timestamp().into());
+                // PC
+                ctx.pc += 1;
+                // SUCCESS
+                true
+            },
+            Opcode::NUMBER => {
+                // GAS
+                ctx.gas += self.fix_gas();
+                // OPERATION
+                let result = match ctx.block.number() {
+                    Some(number) => {
+                        u64_to_u256(number)
+                    },
+                    None => U256::zero(),
+                };
+                ctx.stack.push(result);
+                // PC
+                ctx.pc += 1;
+                // SUCCESS
+                true
+            },
+            Opcode::PEVRANDAO => {
+                // GAS
+                ctx.gas += self.fix_gas();
+                // OPERATION
+                ctx.stack.push(ctx.block.difficulty());
+                // PC
+                ctx.pc += 1;
+                // SUCCESS
+                true
+            },
+            Opcode::GASLIMIT => {
+                // GAS
+                ctx.gas += self.fix_gas();
+                // OPERATION
+                ctx.stack.push(ctx.block.gas_limit().into());
+                // PC
+                ctx.pc += 1;
+                // SUCCESS
+                true
+            },
+            Opcode::CHAINID => {
+                // GAS
+                ctx.gas += self.fix_gas();
+                // OPERATION
+                ctx.stack.push(u64_to_u256(ctx.block.chain_id()));
+                // PC
+                ctx.pc += 1;
+                // SUCCESS
+                true
+            },
+            Opcode::SELFBALANCE => {
+                // GAS
+                ctx.gas += self.fix_gas();
+                // OPERATION
+                //
+                // PC
+                ctx.pc += 1;
+                // SUCCESS
+                true
+            },
             Opcode::BASEFEE => {
                 // GAS
                 ctx.gas += self.fix_gas();
                 // OPERATION
-                todo!();
+                match ctx.block.base_fee() {
+                    Some(base_fee) => ctx.stack.push(base_fee),
+                    None => ctx.stack.push(U256::zero()),
+                };
                 // PC
                 ctx.pc += 1;
                 // SUCCESS
@@ -1729,6 +1846,14 @@ impl Opcode {
             Opcode::CALLDATACOPY => 2,
             Opcode::CODESIZE => 2,
             Opcode::CODECOPY => 2,
+            Opcode::BLOCKHASH => 2,
+            Opcode::COINBASE => 2,
+            Opcode::TIMESTAMP => 2,
+            Opcode::NUMBER => 2,
+            Opcode::PEVRANDAO => 2,
+            Opcode::GASLIMIT => 2,
+            Opcode::CHAINID => 2,
+            Opcode::SELFBALANCE => 2,
             // TODO: end
             Opcode::POP => 2,
             Opcode::PC => 2,

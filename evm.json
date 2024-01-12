@@ -1439,7 +1439,7 @@
     {
       "name": "BASEFEE",
       "block": {
-        "basefee": "0x1"
+        "baseFee": "0x1"
       },
       "code": {
         "asm": "BASEFEE",
@@ -1541,7 +1541,7 @@
     {
       "name": "GASLIMIT",
       "block": {
-        "gaslimit": "0xffffffffffff"
+        "gasLimit": "0xffffffffffff"
       },
       "code": {
         "asm": "GASLIMIT",
@@ -1558,7 +1558,7 @@
     {
       "name": "CHAINID",
       "block": {
-        "chainid": "0x1"
+        "chainId": "0x1"
       },
       "code": {
         "asm": "CHAINID",

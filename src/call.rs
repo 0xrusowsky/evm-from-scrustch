@@ -1,8 +1,12 @@
 use serde::Deserialize;
-use serde::de::{self, Deserializer};
 use ethereum_types::U256;
 
-use crate::utils::Address;
+use crate::utils::{
+    Address,
+    hex_string_to_bytes,
+    hex_string_to_address,
+};
+
 
 #[derive(Debug, Default, Clone, Deserialize)]
 pub struct Call {
@@ -91,31 +95,4 @@ impl Call {
     pub fn view(&self) -> bool {
         self.view
     }
-}
-
-
-// Custom deserializers to convert hex strings from EVM Test
-
-fn hex_string_to_bytes<'de, D>(deserializer: D) -> Result<Vec<u8>, D::Error>
-where
-    D: Deserializer<'de>,
-{
-    let s = String::deserialize(deserializer)?;
-    // Remove "0x" prefix if present
-    let trimmed = if s.starts_with("0x") { &s[2..] } else { &s };
-    // Convert hex string to bytes
-    hex::decode(trimmed).map_err(de::Error::custom)
-}
-
-fn hex_string_to_address<'de, D>(deserializer: D) -> Result<Address, D::Error>
-where
-    D: Deserializer<'de>,
-{
-    let s = String::deserialize(deserializer)?;
-    // Remove "0x" prefix if present
-    let trimmed = if s.starts_with("0x") { &s[2..] } else { &s };
-    // Convert hex string to bytes
-    let bytes = hex::decode(trimmed).map_err(de::Error::custom)?;
-    
-    Ok(Address::from_slice(&bytes))
 }

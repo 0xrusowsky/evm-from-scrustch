@@ -10,6 +10,8 @@ pub mod opcode;
 use crate::opcode::Opcode;
 pub mod call;
 pub use crate::call::Call;
+pub mod block;
+pub use crate::block::Block;
 
 #[derive(Debug, Deserialize, Clone)]
 pub struct Code {
@@ -26,6 +28,7 @@ pub struct EvmResult {
 
 pub struct ExecutionContext {
     call: Call,
+    block: Block,
     code: Vec<u8>,
     stack: Stack,
     memory: Memory,
@@ -35,9 +38,10 @@ pub struct ExecutionContext {
 }
 
 impl ExecutionContext {
-    pub fn new(call: Call, code: Vec<u8>) -> Self {
+    pub fn new(call: Call, block: Block, code: Vec<u8>) -> Self {
         Self {
             call,
+            block,
             code,
             stack: Stack::new(),
             memory: Memory::new(),
