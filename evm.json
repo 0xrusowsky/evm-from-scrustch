@@ -1573,20 +1573,6 @@
       "hint": ""
     },
     {
-      "name": "BLOCKHASH",
-      "hint": "Not used in this test suite, can return 0",
-      "code": {
-        "asm": "PUSH1 0\nBLOCKHASH",
-        "bin": "600040"
-      },
-      "expect": {
-        "stack": [
-          "0x0"
-        ],
-        "success": true
-      }
-    },
-    {
       "name": "BALANCE",
       "hint": "Read \"State\" section of the course learning materials. Modify your evm function to take state as one of the arguments, or turn it into a class",
       "state": {
@@ -2364,6 +2350,20 @@
         "stack": [
           "0x0",
           "0x7"
+        ],
+        "success": true
+      }
+    },
+    {
+      "name": "BLOCKHASH",
+      "hint": "Not used in this test suite, can return 0",
+      "code": {
+        "asm": "PUSH1 0\nBLOCKHASH",
+        "bin": "600040"
+      },
+      "expect": {
+        "stack": [
+          "0x0"
         ],
         "success": true
       }

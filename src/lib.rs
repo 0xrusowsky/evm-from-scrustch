@@ -12,8 +12,10 @@ pub mod call;
 pub use crate::call::Call;
 pub mod block;
 pub use crate::block::Block;
+pub mod state;
+pub use crate::state::State;
 
-#[derive(Debug, Deserialize, Clone)]
+#[derive(Debug, Deserialize, Default, Clone)]
 pub struct Code {
     #[serde(default)]
     pub asm: Option<String>,
@@ -29,6 +31,7 @@ pub struct EvmResult {
 pub struct ExecutionContext {
     call: Call,
     block: Block,
+    state: State,
     code: Vec<u8>,
     stack: Stack,
     memory: Memory,
@@ -38,10 +41,11 @@ pub struct ExecutionContext {
 }
 
 impl ExecutionContext {
-    pub fn new(call: Call, block: Block, code: Vec<u8>) -> Self {
+    pub fn new(call: Call, block: Block, state: State, code: Vec<u8>) -> Self {
         Self {
             call,
             block,
+            state,
             code,
             stack: Stack::new(),
             memory: Memory::new(),

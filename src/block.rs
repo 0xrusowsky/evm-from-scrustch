@@ -7,7 +7,7 @@ use crate::utils::{
     hex_string_to_address_option,
 };
 
-#[derive(Debug, Default, Deserialize, Clone, Copy)]
+#[derive(Debug, Default, Deserialize, Clone)]
 pub struct Block {
     /// Chain ID
     #[serde(default, rename = "chainId")]
@@ -46,9 +46,12 @@ pub struct Block {
     /// Timestamp
     #[serde(default)]
     pub timestamp: U256,
+    /// Previous RANDAO
+    #[serde(default, rename = "prevRandao")]
+    pub prev_randao: Option<U256>,
     /// Difficulty
     #[serde(default)]
-    pub difficulty: U256,
+    pub difficulty: Option<U256>,
     /// Total difficulty
     #[serde(rename = "totalDifficulty")]
     pub total_difficulty: Option<U256>,
@@ -127,7 +130,11 @@ impl Block {
         self.timestamp
     }
 
-    pub fn difficulty(&self) -> U256 {
+    pub fn prev_randao(&self) -> Option<U256> {
+        self.prev_randao
+    }
+
+    pub fn difficulty(&self) -> Option<U256> {
         self.difficulty
     }
 

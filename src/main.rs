@@ -13,17 +13,20 @@
  * to Rust, implement EVM in another programming language first.
  */
 use ethereum_types::U256;
-use evm::{ExecutionContext, Code, Call, Block};
+use evm::{ExecutionContext, Code, Call, Block, State};
 use serde::Deserialize;
 
 #[derive(Debug, Deserialize)]
 struct Evmtest {
+    // common fields for all tests
     name: String,
     hint: String,
     code: Code,
     expect: Expect,
+    // optional fields
     tx: Option<Call>,
     block: Option<Block>,
+    state: Option<State>,
 }
 
 impl Evmtest {
@@ -38,6 +41,13 @@ impl Evmtest {
         match &self.block {
             Some(block) => block.clone(),
             None => Block::default(),
+        }
+    }
+
+    fn state(&self) -> State {
+        match &self.state {
+            Some(state) => state.clone(),
+            None => State::default(),
         }
     }
 }
@@ -62,8 +72,7 @@ fn main() {
         println!("Test {} of {}: {}", index + 1, total, test.name);
 
         let code: Vec<u8> = hex::decode(&test.code.bin).unwrap();
-        let mut evm = ExecutionContext::new(test.call(), test.block(), code);
-
+        let mut evm = ExecutionContext::new(test.call(), test.block(), test.state(), code);
         let result = evm.run();
 
         let expected_stack: Vec<U256> = test

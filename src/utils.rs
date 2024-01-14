@@ -1,8 +1,10 @@
+use core::num;
+
 use ethereum_types::{U64, H160, U256};
 use serde::Deserialize;
 use serde::de::{self, Deserializer};
 
-#[derive(Debug, Default, Clone, Copy, Deserialize)]
+#[derive(Debug, Default, Clone, Copy, Deserialize, PartialEq, Eq, Hash)]
 pub struct Address(H160);
 
 impl Address {
@@ -15,6 +17,16 @@ impl Address {
         } else {
             address[20-len..].copy_from_slice(slice);
         }
+        Address(H160::from(address))
+    }
+
+    pub fn from_u256(number: U256) -> Self {
+        // Parse U256 to 32 bytes
+        let mut bytes = [0u8; 32];
+        number.to_big_endian(&mut bytes);
+        // Get the less significant 20 bytes
+        let mut address = [0u8; 20];
+        address.copy_from_slice(&bytes[12..32]);
         Address(H160::from(address))
     }
 

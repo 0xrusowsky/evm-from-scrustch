@@ -3,7 +3,10 @@ use sha3::{Digest, Keccak256};
 use ethereum_types::{U256, U512};
 use std::ops::{BitAnd, BitOr, BitXor, Not, Shl, Shr};
 
-use crate::utils::u64_to_u256;
+use crate::utils::{
+    Address,
+    u64_to_u256,
+};
 
 use super::ExecutionContext;
 
@@ -36,6 +39,7 @@ pub enum Opcode {
     SAR,
     SHA3,
     ADDRESS,
+    BALANCE,
     ORIGIN,
     CALLER,
     CALLVALUE,
@@ -45,11 +49,14 @@ pub enum Opcode {
     CODESIZE,
     CODECOPY,
     GASPRICE,
+    EXTCODESIZE,
+    EXTCODECOPY,
+    EXTCODEHASH,
     BLOCKHASH,
     COINBASE,
     TIMESTAMP,
     NUMBER,
-    PEVRANDAO,
+    PREVRANDAO,
     GASLIMIT,
     CHAINID,
     SELFBALANCE,
@@ -164,6 +171,7 @@ impl TryFrom<u8> for Opcode {
             0x1D => Ok(Opcode::SAR),
             0x20 => Ok(Opcode::SHA3),
             0x30 => Ok(Opcode::ADDRESS),
+            0x31 => Ok(Opcode::BALANCE),
             0x32 => Ok(Opcode::ORIGIN),
             0x33 => Ok(Opcode::CALLER),
             0x34 => Ok(Opcode::CALLVALUE),
@@ -173,11 +181,14 @@ impl TryFrom<u8> for Opcode {
             0x38 => Ok(Opcode::CODESIZE),
             0x39 => Ok(Opcode::CODECOPY),
             0x3A => Ok(Opcode::GASPRICE),
+            0x3B => Ok(Opcode::EXTCODESIZE),
+            0x3C => Ok(Opcode::EXTCODECOPY),
+            0x3F => Ok(Opcode::EXTCODEHASH),
             0x40 => Ok(Opcode::BLOCKHASH),
             0x41 => Ok(Opcode::COINBASE),
             0x42 => Ok(Opcode::TIMESTAMP),
             0x43 => Ok(Opcode::NUMBER),
-            0x44 => Ok(Opcode::PEVRANDAO),
+            0x44 => Ok(Opcode::PREVRANDAO),
             0x45 => Ok(Opcode::GASLIMIT),
             0x46 => Ok(Opcode::CHAINID),
             0x47 => Ok(Opcode::SELFBALANCE),
@@ -697,6 +708,18 @@ impl Opcode {
                 // SUCCESS
                 true
             },
+            Opcode::BALANCE => {
+                // STACK
+                let address = Address::from_u256(ctx.stack.pop());
+                // GAS
+                ctx.gas += self.fix_gas();
+                // OPERATION
+                ctx.stack.push(ctx.state.balance(&address));
+                // PC
+                ctx.pc += 1;
+                // SUCCESS
+                true
+            },
             Opcode::ORIGIN => {
                 // GAS
                 ctx.gas += self.fix_gas();
@@ -835,6 +858,58 @@ impl Opcode {
                 // SUCCESS
                 true
             },
+            Opcode::EXTCODESIZE => {
+                // STACK
+                let address = Address::from_u256(ctx.stack.pop());
+                // GAS
+                ctx.gas += self.fix_gas();
+                // OPERATION
+                ctx.stack.push(ctx.state.code_size(&address).into());
+                // PC
+                ctx.pc += 1;
+                // SUCCESS
+                true
+            },
+            Opcode::EXTCODECOPY => {
+                // STACK
+                let address = Address::from_u256(ctx.stack.pop());
+                let memory_offset = ctx.stack.pop().as_usize();
+                let offset = ctx.stack.pop().as_usize();
+                let mut size = ctx.stack.pop().as_usize();
+                // GAS
+                ctx.gas += self.fix_gas();
+                // OPERATION
+                let code = ctx.state.code(&address);
+                if size > code.len() { size = code.len() }
+                let mut result = vec![0u8; size];
+                let (end, len) = if offset + size > code.len() {
+                    (size, size - offset)
+                } else {
+                    (offset + size, size)
+                };
+                if len == size {
+                    result.copy_from_slice(&code[offset..end]);
+                } else {
+                    result[..len].copy_from_slice(&code[offset..end]);
+                }
+                ctx.memory.store(memory_offset, &result);
+                // PC
+                ctx.pc += 1;
+                // SUCCESS
+                true
+            },
+            Opcode::EXTCODEHASH => {
+                // STACK
+                let address = Address::from_u256(ctx.stack.pop());
+                // GAS
+                ctx.gas += self.fix_gas();
+                // OPERATION
+                ctx.stack.push(U256::from_big_endian(&ctx.state.code_hash(&address)));
+                // PC
+                ctx.pc += 1;
+                // SUCCESS
+                true
+            },
             Opcode::BLOCKHASH => {
                 // STACK
                 let block_number = ctx.stack.pop();
@@ -891,11 +966,19 @@ impl Opcode {
                 // SUCCESS
                 true
             },
-            Opcode::PEVRANDAO => {
+            Opcode::PREVRANDAO => {
                 // GAS
                 ctx.gas += self.fix_gas();
                 // OPERATION
-                ctx.stack.push(ctx.block.difficulty());
+                let result = match ctx.block.prev_randao() {
+                    Some(number) => number,
+                    // If block.prev_randao is None, use block.difficulty instead
+                    None => match ctx.block.difficulty() {
+                        Some(number) => number,
+                        None => U256::zero(),
+                    }
+                };
+                ctx.stack.push(result);
                 // PC
                 ctx.pc += 1;
                 // SUCCESS
@@ -922,10 +1005,12 @@ impl Opcode {
                 true
             },
             Opcode::SELFBALANCE => {
+                // STACK
+                let address = ctx.call.recipient();
                 // GAS
                 ctx.gas += self.fix_gas();
                 // OPERATION
-                //
+                ctx.stack.push(ctx.state.balance(&address));
                 // PC
                 ctx.pc += 1;
                 // SUCCESS
@@ -1835,26 +1920,6 @@ impl Opcode {
             Opcode::JUMPDEST => 1,
             // Gas: Base
             Opcode::ADDRESS => 2,
-            // TODO: start
-            Opcode::ORIGIN => 2,
-            Opcode::CALLER => 2,
-            Opcode::GASPRICE => 2,
-            Opcode::BASEFEE => 2,
-            Opcode::CALLVALUE => 2,
-            Opcode::CALLDATALOAD => 2,
-            Opcode::CALLDATASIZE => 2,
-            Opcode::CALLDATACOPY => 2,
-            Opcode::CODESIZE => 2,
-            Opcode::CODECOPY => 2,
-            Opcode::BLOCKHASH => 2,
-            Opcode::COINBASE => 2,
-            Opcode::TIMESTAMP => 2,
-            Opcode::NUMBER => 2,
-            Opcode::PEVRANDAO => 2,
-            Opcode::GASLIMIT => 2,
-            Opcode::CHAINID => 2,
-            Opcode::SELFBALANCE => 2,
-            // TODO: end
             Opcode::POP => 2,
             Opcode::PC => 2,
             Opcode::MSIZE => 2,
@@ -1962,6 +2027,8 @@ impl Opcode {
             // Gas: Extaccount
             // Gas: Keccak
             Opcode::SHA3 => 30,
+            // TODO:
+            _ => 0
         }
     }
 }
