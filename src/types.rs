@@ -249,6 +249,8 @@ impl Bytes32 {
     }
 }
 
+// -- TYPE: ADDRESS -----------------------------------------------------------
+
 #[derive(Debug, Default, Clone, Copy, Deserialize, PartialEq, Eq, Hash)]
 pub struct Address(H160);
 
@@ -265,12 +267,16 @@ impl Address {
         Bytes32::from_address(*self).to_u256()
     }
 
-    pub fn as_bytes(&self) -> &[u8] {
+    pub fn as_slice(&self) -> &[u8] {
         self.0.as_bytes()
     }
 
     pub fn as_bytes32(&self) -> Bytes32 {
         Bytes32::from_address(*self)
+    }
+
+    pub fn as_bytes(&self) -> Bytes {
+        self.as_bytes32().as_bytes()
     }
 }
 
