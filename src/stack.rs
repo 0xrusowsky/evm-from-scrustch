@@ -1,7 +1,7 @@
+use crate::types::{Address, Bytes32};
 use ethereum_types::U256;
-use crate::types::{Bytes32, Address};
 
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub struct Stack {
     items: Vec<Bytes32>,
     max_depth: usize,
@@ -52,7 +52,6 @@ impl Stack {
 
         let index = stack_depth - depth - 1;
         self.items.swap(index, stack_depth - 1);
-
     }
 
     // Stack Getters

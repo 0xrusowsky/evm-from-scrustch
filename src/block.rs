@@ -1,10 +1,9 @@
-use ethereum_types::{U64, U256, H256};
+use ethereum_types::{H256, U256, U64};
 use serde::Deserialize;
 
 use crate::types::{
-    Address,
-    // hex_string_to_u64,
     hex_string_to_address_option,
+    Address,
 };
 
 #[derive(Debug, Default, Deserialize, Clone)]
@@ -66,22 +65,42 @@ pub struct Block {
     #[serde(rename = "baseFee")]
     pub base_fee: Option<U256>,
     /// Beneficiary address (if past London)
-    #[serde(default, rename = "coinbase", deserialize_with = "hex_string_to_address_option")]
+    #[serde(
+        default,
+        rename = "coinbase",
+        deserialize_with = "hex_string_to_address_option"
+    )]
     pub beneficiary: Option<Address>,
     /// Blob gas used (if past Cancun)
-    #[serde(default, skip_serializing_if = "Option::is_none", rename = "blobGasUsed")]
+    #[serde(
+        default,
+        skip_serializing_if = "Option::is_none",
+        rename = "blobGasUsed"
+    )]
     pub blob_gas_used: Option<U256>,
     /// Excess blob gas (if past Cancun)
-    #[serde(default, skip_serializing_if = "Option::is_none", rename = "excessBlobGas")]
+    #[serde(
+        default,
+        skip_serializing_if = "Option::is_none",
+        rename = "excessBlobGas"
+    )]
     pub excess_blob_gas: Option<U256>,
     /// Withdrawals root hash (if past Shanghai)
-    #[serde(default, skip_serializing_if = "Option::is_none", rename = "withdrawalsRoot")]
+    #[serde(
+        default,
+        skip_serializing_if = "Option::is_none",
+        rename = "withdrawalsRoot"
+    )]
     pub withdrawals_root: Option<H256>,
     /// Withdrawals (if past Shanghai)
     // #[serde(default, skip_serializing_if = "Option::is_none")]
     // pub withdrawals: Option<Vec<Withdrawal>>,
     /// Parent beacon block root (if past Cancun)
-    #[serde(default, skip_serializing_if = "Option::is_none", rename = "parentBeaconBlockRoot")]
+    #[serde(
+        default,
+        skip_serializing_if = "Option::is_none",
+        rename = "parentBeaconBlockRoot"
+    )]
     pub parent_beacon_block_root: Option<H256>,
 }
 

@@ -1,16 +1,10 @@
-use std::collections::HashMap;
-use sha3::{Digest, Keccak256};
 use ethereum_types::U256;
 use serde::Deserialize;
+use sha3::{Digest, Keccak256};
+use std::collections::HashMap;
 
 use super::Code;
-use crate::types::{
-    Bytes,
-    Bytes32,
-    Address,
-    hex_string_to_bytes,
-    hex_string_to_address,
-};
+use crate::types::{hex_string_to_address, hex_string_to_bytes, Address, Bytes, Bytes32};
 
 #[derive(Debug, Default, Deserialize, Clone)]
 #[serde(default)]
@@ -35,18 +29,14 @@ impl State {
 
     pub fn balance(&self, address: &Address) -> U256 {
         match self.get(address) {
-            Some(account_state) => {
-                account_state.balance()
-            },
+            Some(account_state) => account_state.balance(),
             None => U256::zero(),
         }
     }
 
     pub fn code(&self, address: &Address) -> Bytes {
         match self.get(address) {
-            Some(account_state) => {
-                account_state.code()
-            },
+            Some(account_state) => account_state.code(),
             None => Bytes::new(),
         }
     }
@@ -57,7 +47,7 @@ impl State {
 
     pub fn code_hash(&self, address: &Address) -> Bytes32 {
         let code = self.code(address);
-        if code.len() == 0 {
+        if code.is_empty() {
             Bytes32::from_vec(vec![0])
         } else {
             Bytes32::from_vec(Keccak256::digest(self.code(address).as_slice()).to_vec())
@@ -77,7 +67,11 @@ pub struct AccountState {
     code_bytes: Bytes,
     #[serde(default, rename = "code")]
     code_test: Code,
-    #[serde(default, rename = "storageRoot", deserialize_with = "hex_string_to_bytes")]
+    #[serde(
+        default,
+        rename = "storageRoot",
+        deserialize_with = "hex_string_to_bytes"
+    )]
     storage_root: Bytes,
 }
 
@@ -106,7 +100,7 @@ impl AccountState {
     }
 
     pub fn code(&self) -> Bytes {
-        if self.code_bytes.len() > 0 {
+        if !self.code_bytes.is_empty() {
             self.code_bytes.clone()
         } else {
             Bytes::from_vec(hex::decode(&self.code_test.bin).unwrap())

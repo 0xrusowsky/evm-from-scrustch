@@ -1,6 +1,6 @@
 use crate::types::Bytes;
 
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub struct Memory(Bytes);
 
 impl Memory {
@@ -12,8 +12,12 @@ impl Memory {
         self.0.len()
     }
 
+    pub fn is_empty(&self) -> bool {
+        self.0.len() == 0
+    }
+
     pub fn size(&self) -> usize {
-        ((self.len() + 31 ) / 32) * 32
+        ((self.len() + 31) / 32) * 32
     }
 
     pub fn expansion(&self, offset: usize, size: usize) -> usize {

@@ -14,7 +14,7 @@
  */
 use ethereum_types::U256;
 use evm::types::{Bytes, Bytes32};
-use evm::{ExecutionContext, Code, Call, Block, State};
+use evm::{Block, Call, Code, ExecutionContext, State};
 use serde::Deserialize;
 
 #[derive(Debug, Deserialize)]

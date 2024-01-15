@@ -1,9 +1,9 @@
-use std::fmt;
-use std::ops::{Index, IndexMut, Range};
-use serde::Deserialize;
+use ethereum_types::{H160, U256, U512, U64};
 use serde::de::{self, Deserializer};
-use ethereum_types::{U64, H160, U256, U512};
+use serde::Deserialize;
+use std::fmt;
 use std::ops::{BitAnd, BitOr, BitXor, Not};
+use std::ops::{Index, IndexMut, Range};
 
 // --- TYPE: BYTES -----------------------------------------------------------
 //  A wrapper around Vec<u8> that represents an arbitrary number of bytes.
@@ -35,12 +35,16 @@ impl Bytes {
     }
 
     pub fn as_usize(&self) -> usize {
-        // Take the least significant part that fits into usize
-        self.as_bytes32().as_usize()
+        // Take the least significant bytes that fit into usize
+        self.to_u512().as_usize()
     }
 
     pub fn len(&self) -> usize {
         self.0.len()
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.0.len() == 0
     }
 
     pub fn resize(&mut self, new_size: usize, value: u8) {
@@ -58,7 +62,7 @@ impl Bytes {
     pub fn is_zero(&self) -> bool {
         self.0.iter().all(|&x| x == 0)
     }
-    
+
     // Conversion from/to Bytes32
     pub fn as_bytes32(&self) -> Bytes32 {
         let vec = self.0.to_vec();
@@ -67,13 +71,27 @@ impl Bytes {
         if len < 32 {
             bytes[..len].copy_from_slice(&vec);
         } else {
-            bytes.copy_from_slice(&vec[len-32..len]);
+            bytes.copy_from_slice(&vec[len - 32..len]);
         }
         Bytes32::from_vec(bytes.to_vec())
     }
 
     pub fn from_bytes32(bytes: Bytes32) -> Bytes {
         bytes.as_bytes()
+    }
+
+    // Conversion from/to U512
+    pub fn to_u512(&self) -> U512 {
+        let len = self.0.len();
+        let mut bytes = [0u8; 64];
+        bytes[64 - len..64].copy_from_slice(&self.0);
+        U512::from_big_endian(&bytes)
+    }
+
+    pub fn from_u512(number: U512) -> Bytes32 {
+        let mut bytes = [0u8; 32];
+        number.to_big_endian(&mut bytes);
+        Bytes32::from_vec(bytes.to_vec())
     }
 }
 
@@ -94,21 +112,29 @@ impl Bytes32 {
         self.0.len()
     }
 
+    pub fn is_empty(&self) -> bool {
+        self.0.len() == 0
+    }
+
     pub fn as_usize(&self) -> usize {
         self.to_u256().as_usize()
     }
 
     pub fn get_byte(&self, index: usize) -> u8 {
-        if index < 32 {self.0[index]} else { 0 }
+        if index < 32 {
+            self.0[index]
+        } else {
+            0
+        }
     }
 
     pub fn from_vec(vec: Vec<u8>) -> Bytes32 {
         let len = vec.len();
         let mut bytes = [0u8; 32];
         if len < 32 {
-            bytes[32-len..32].copy_from_slice(&vec);
+            bytes[32 - len..32].copy_from_slice(&vec);
         } else {
-            bytes.copy_from_slice(&vec[len-32..len]);
+            bytes.copy_from_slice(&vec[len - 32..len]);
         }
         Bytes32(bytes.to_vec())
     }
@@ -149,7 +175,7 @@ impl Bytes32 {
     pub fn to_u512(&self) -> U512 {
         let len = self.0.len();
         let mut bytes = [0u8; 64];
-        bytes[64-len..64].copy_from_slice(&self.0);
+        bytes[64 - len..64].copy_from_slice(&self.0);
         U512::from_big_endian(&bytes)
     }
 
@@ -164,9 +190,9 @@ impl Bytes32 {
         let len = self.0.len();
         let mut bytes = [0u8; 32];
         if len < 32 {
-            bytes[32-len..32].copy_from_slice(&self.0);
+            bytes[32 - len..32].copy_from_slice(&self.0);
         } else {
-            bytes.copy_from_slice(&self.0[len-32..len]);
+            bytes.copy_from_slice(&self.0[len - 32..len]);
         }
         U256::from_big_endian(&bytes)
     }
@@ -174,7 +200,6 @@ impl Bytes32 {
     pub fn from_u256(number: U256) -> Bytes32 {
         let mut bytes = [0u8; 32];
         number.to_big_endian(&mut bytes);
-        // println!("Bytes32::from_u256({:#?}) -> {:#?}", number, bytes);
         Bytes32::from_vec(bytes.to_vec())
     }
 
@@ -183,9 +208,9 @@ impl Bytes32 {
         let len = self.0.len();
         let mut bytes = [0u8; 8];
         if len < 8 {
-            bytes[8-len..8].copy_from_slice(&self.0);
+            bytes[8 - len..8].copy_from_slice(&self.0);
         } else {
-            bytes.copy_from_slice(&self.0[len-8..len]);
+            bytes.copy_from_slice(&self.0[len - 8..len]);
         }
         U64::from_big_endian(&bytes)
     }
@@ -201,9 +226,9 @@ impl Bytes32 {
         let len = self.0.len();
         let mut bytes = [0u8; 20];
         if len < 20 {
-            bytes[20-len..20].copy_from_slice(&self.0);
+            bytes[20 - len..20].copy_from_slice(&self.0);
         } else {
-            bytes.copy_from_slice(&self.0[len-20..len]);
+            bytes.copy_from_slice(&self.0[len - 20..len]);
         }
         H160::from(&bytes)
     }
@@ -233,7 +258,7 @@ impl Address {
     }
 
     pub fn from_u256(number: U256) -> Self {
-       Bytes32::from_u256(number).to_address()
+        Bytes32::from_u256(number).to_address()
     }
 
     pub fn to_u256(&self) -> U256 {
@@ -248,7 +273,6 @@ impl Address {
         Bytes32::from_address(*self)
     }
 }
-
 
 // -- COMMON TRAITS -----------------------------------------------------------
 
@@ -327,7 +351,7 @@ impl fmt::UpperHex for Bytes32 {
 }
 impl fmt::UpperHex for Address {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        for byte in &self.0.0 {
+        for byte in &self.0 .0 {
             write!(f, "{:02X}", byte)?;
         }
         Ok(())
@@ -339,11 +363,7 @@ fn bitnot(a: Vec<u8>) -> Vec<u8> {
     a.iter().map(|&x| !x).collect()
 }
 
-fn bitwise_operation(
-    a: Vec<u8>,
-    b: Vec<u8>,
-    operator: fn(x:u8, y:u8) -> u8
-) -> Vec<u8> {
+fn bitwise_operation(a: Vec<u8>, b: Vec<u8>, operator: fn(x: u8, y: u8) -> u8) -> Vec<u8> {
     let len = std::cmp::max(a.len(), b.len());
     let mut result = Vec::with_capacity(len);
     for i in 0..len {
@@ -431,7 +451,6 @@ impl Not for Bytes32 {
     }
 }
 
-
 // -- UTILS -------------------------------------------------------------------
 
 // Custom deserializers to convert hex strings from EVM Test
@@ -441,9 +460,10 @@ where
     D: Deserializer<'de>,
 {
     let s = String::deserialize(deserializer)?;
-    // Remove "0x" prefix if present
-    let trimmed = if s.starts_with("0x") { &s[2..] } else { &s };
-    // Convert hex string to bytes
+    let trimmed = match s.strip_prefix("0x") {
+        Some(stripped) => stripped,
+        None => &s,
+    };
     hex::decode(trimmed).map_err(de::Error::custom)
 }
 
@@ -452,9 +472,10 @@ where
     D: Deserializer<'de>,
 {
     let s = String::deserialize(deserializer)?;
-    // Remove "0x" prefix if present
-    let trimmed = if s.starts_with("0x") { &s[2..] } else { &s };
-    // Convert hex string to bytes
+    let trimmed = match s.strip_prefix("0x") {
+        Some(stripped) => stripped,
+        None => &s,
+    };
     let bytes = hex::decode(trimmed).map_err(de::Error::custom)?;
     Ok(Bytes::from_vec(bytes))
 }
@@ -464,16 +485,16 @@ where
     D: Deserializer<'de>,
 {
     let s = String::deserialize(deserializer)?;
-    // Remove "0x" prefix if present
-    let trimmed = if s.starts_with("0x") { &s[2..] } else { &s };
-    // Prepend "0" if the length of trimmed is odd
+    let trimmed = match s.strip_prefix("0x") {
+        Some(stripped) => stripped,
+        None => &s,
+    };
     let padded = if trimmed.len() % 2 != 0 {
         format!("0{}", trimmed)
     } else {
         trimmed.to_string()
     };
-    // Convert hex string to bytes
-    let bytes = hex::decode(&padded).map_err(de::Error::custom)?;
+    let bytes = hex::decode(padded).map_err(de::Error::custom)?;
     Ok(Address::from_slice(&bytes))
 }
 
@@ -484,18 +505,18 @@ where
     let s: Option<String> = Option::deserialize(deserializer)?;
     match s {
         Some(s) => {
-            // Remove "0x" prefix if present
-            let trimmed = if s.starts_with("0x") { &s[2..] } else { &s };
-            // Prepend "0" if the length of trimmed is odd
+            let trimmed = match s.strip_prefix("0x") {
+                Some(stripped) => stripped,
+                None => &s,
+            };
             let padded = if trimmed.len() % 2 != 0 {
                 format!("0{}", trimmed)
             } else {
                 trimmed.to_string()
             };
-            // Convert hex string to bytes
-            let bytes = hex::decode(&padded).map_err(de::Error::custom)?;
+            let bytes = hex::decode(padded).map_err(de::Error::custom)?;
             Ok(Some(Address::from_slice(&bytes)))
         }
-        None => Ok(None), // If the string is None, return None
+        None => Ok(None),
     }
 }

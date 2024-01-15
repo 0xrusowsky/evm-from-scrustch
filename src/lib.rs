@@ -70,11 +70,11 @@ impl ExecutionContext {
             if !success || self.stopped || self.pc >= self.code.len() {
                 break;
             }
-        
+
             // Process the next opcode
             let opcode: Opcode = self.code[self.pc].try_into().unwrap();
             let opcode_success = opcode.execute(self);
-        
+
             // Update control variables
             success = opcode_success;
         }

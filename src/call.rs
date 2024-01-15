@@ -1,13 +1,7 @@
-use serde::Deserialize;
 use ethereum_types::U256;
+use serde::Deserialize;
 
-use crate::types::{
-    Bytes,
-    Address,
-    hex_string_to_bytes,
-    hex_string_to_address,
-};
-
+use crate::types::{hex_string_to_address, hex_string_to_bytes, Address, Bytes};
 
 #[derive(Debug, Default, Clone, Deserialize)]
 pub struct Call {
