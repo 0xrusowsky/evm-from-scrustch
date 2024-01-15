@@ -1,9 +1,10 @@
 use std::collections::HashMap;
 use ethereum_types::U256;
+use serde::Deserialize;
 
 use crate::types::Bytes32;
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Default, Deserialize, Clone)]
 pub struct Storage {
     map: HashMap<U256, Bytes32>,
     warm_slots: Vec<U256>,
@@ -17,7 +18,7 @@ impl Storage {
         }
     }
 
-    pub fn load(&mut self, key: U256) -> Bytes32 {
+    pub fn load(&self, key: U256) -> Bytes32 {
         match self.map.get(&key) {
             Some(value) => value.clone(),
             None => Bytes32::zero(),

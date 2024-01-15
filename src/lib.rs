@@ -33,7 +33,7 @@ pub struct EvmResult {
 }
 
 pub struct CallResult {
-    pub success: bool,
+    pub success: Bytes32,
     pub result: Bytes,
 }
 
@@ -49,6 +49,7 @@ pub struct ExecutionContext {
     pc: usize,
     gas: usize,
     target: Address,
+    return_data: Bytes,
     stopped: bool,
 }
 
@@ -67,6 +68,7 @@ impl ExecutionContext {
             pc: 0,
             gas: 0,
             target,
+            return_data: Bytes::new(),
             stopped: false,
         }
     }
@@ -77,6 +79,10 @@ impl ExecutionContext {
 
     pub fn code(&self) -> Bytes {
         self.code.clone()
+    }
+
+    pub fn return_data(&self) -> Bytes {
+        self.return_data.clone()
     }
 
     pub fn run(&mut self) -> EvmResult {
@@ -107,7 +113,7 @@ impl ExecutionContext {
         let code = self.state.code(&call.code_target());
 
         if code.is_empty() {
-            return CallResult{success, result: Bytes::new()};
+            return CallResult{success: Bytes32::zero(), result: Bytes::new()};
         }
 
         // Cache the current execution context before executing the call
@@ -134,14 +140,29 @@ impl ExecutionContext {
         }
 
         let result = self.call.result();
-        if success == false {
-            // Restore the execution context
-            *self = cache;
-        };
+        match success {
+            true => {
+                self.return_data = result.clone();
+                // Restore the execution context
+                self.target = cache.target;
+                self.code = cache.code;
+                self.call = cache.call;
+                self.pc = cache.pc;
 
-        CallResult {
-            success,
-            result,
+                CallResult {
+                    success: Bytes32::one(),
+                    result,
+                }
+            },
+            false => {
+                // Restore the execution context and revert state changes
+                *self = cache;
+
+                CallResult {
+                    success: Bytes32::zero(),
+                    result,
+                }
+            },
         }
     }
 

@@ -57,7 +57,7 @@ impl Bytes {
 
     pub fn one() -> Bytes {
         Bytes::from_byte(1)
-    }
+    }   
 
     pub fn is_zero(&self) -> bool {
         self.0.iter().all(|&x| x == 0)

@@ -3,8 +3,7 @@ use serde::Deserialize;
 use sha3::{Digest, Keccak256};
 use std::collections::HashMap;
 
-use crate::{ExecutionContext, Code};
-use crate::call::Call;
+use crate::{Code, Storage};
 use crate::types::{hex_string_to_address, hex_string_to_bytes, Address, Bytes, Bytes32};
 
 #[derive(Debug, Default, Deserialize, Clone)]
@@ -18,6 +17,10 @@ impl State {
 
     pub fn get(&self, address: &Address) -> Option<&AccountState> {
         self.0.get(address)
+    }
+
+    pub fn get_mut(&mut self, address: &Address) -> Option<&mut AccountState> {
+        self.0.get_mut(address)
     }
 
     pub fn insert(&mut self, address: Address, account_state: AccountState) {
@@ -55,18 +58,18 @@ impl State {
         }
     }
 
-    pub fn static_call(&self, call: Call, ctx: &mut ExecutionContext) -> bool {
-        let code = match self.get(&call.code_target()) {
-            Some(account_state) => account_state.code(),
-            None => return true,
-        };
-
-
-        true
+    pub fn storage_load(&self, address: &Address, key: U256) -> Bytes32 {
+        match self.get(address) {
+            Some(account_state) => account_state.storage.load(key),
+            None => Bytes32::zero(),
+        }
     }
 
-    pub fn call(&mut self, call: Call) -> bool {
-        true
+    pub fn storage_store(&mut self, address: &Address, key: U256, value: Bytes32) {
+        match self.get_mut(address) {
+            Some(account_state) => account_state.storage.store(key, value),
+            None => {}
+        }
     }
 }
 
@@ -88,6 +91,8 @@ pub struct AccountState {
         deserialize_with = "hex_string_to_bytes"
     )]
     storage_root: Bytes,
+    #[serde(default)]
+    pub storage: Storage,
 }
 
 impl AccountState {
@@ -99,6 +104,7 @@ impl AccountState {
             code_bytes: Bytes::new(),
             code_test: Code::default(),
             storage_root: Bytes::new(),
+            storage: Storage::new(),
         }
     }
 
