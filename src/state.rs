@@ -3,7 +3,8 @@ use serde::Deserialize;
 use sha3::{Digest, Keccak256};
 use std::collections::HashMap;
 
-use super::Code;
+use crate::{ExecutionContext, Code};
+use crate::call::Call;
 use crate::types::{hex_string_to_address, hex_string_to_bytes, Address, Bytes, Bytes32};
 
 #[derive(Debug, Default, Deserialize, Clone)]
@@ -52,6 +53,20 @@ impl State {
         } else {
             Bytes32::from_vec(Keccak256::digest(self.code(address).as_slice()).to_vec())
         }
+    }
+
+    pub fn static_call(&self, call: Call, ctx: &mut ExecutionContext) -> bool {
+        let code = match self.get(&call.code_target()) {
+            Some(account_state) => account_state.code(),
+            None => return true,
+        };
+
+
+        true
+    }
+
+    pub fn call(&mut self, call: Call) -> bool {
+        true
     }
 }
 

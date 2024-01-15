@@ -1,11 +1,14 @@
 use serde::Deserialize;
+use ethereum_types::U256;
 
 pub mod types;
-use crate::types::{Bytes, Bytes32};
+use crate::types::{Address, Bytes, Bytes32};
 pub mod stack;
 use crate::stack::Stack;
 pub mod memory;
 use crate::memory::Memory;
+pub mod storage;
+use crate::storage::Storage;
 pub mod opcode;
 use crate::opcode::Opcode;
 pub mod call;
@@ -26,8 +29,15 @@ pub struct Code {
 pub struct EvmResult {
     pub stack: Vec<Bytes32>,
     pub success: bool,
+    pub result: Bytes,
 }
 
+pub struct CallResult {
+    pub success: bool,
+    pub result: Bytes,
+}
+
+#[derive(Debug, Clone)]
 pub struct ExecutionContext {
     call: Call,
     block: Block,
@@ -35,13 +45,17 @@ pub struct ExecutionContext {
     code: Bytes,
     stack: Stack,
     memory: Memory,
+    storage: Storage,
     pc: usize,
     gas: usize,
+    target: Address,
     stopped: bool,
 }
 
 impl ExecutionContext {
     pub fn new(call: Call, block: Block, state: State, code: Bytes) -> Self {
+        let target = call.recipient();
+
         Self {
             call,
             block,
@@ -49,8 +63,10 @@ impl ExecutionContext {
             code,
             stack: Stack::new(),
             memory: Memory::new(),
+            storage: Storage::new(),
             pc: 0,
             gas: 0,
+            target,
             stopped: false,
         }
     }
@@ -82,6 +98,54 @@ impl ExecutionContext {
         EvmResult {
             stack: self.stack.deref_items(),
             success,
+            result: self.call.result(),
         }
+    }
+
+    pub fn execute_call(&mut self, call: Call) -> CallResult {
+        let mut success = true;
+        let code = self.state.code(&call.code_target());
+
+        if code.is_empty() {
+            return CallResult{success, result: Bytes::new()};
+        }
+
+        // Cache the current execution context before executing the call
+        let cache = self.clone();
+
+        // Update the execution context for the call
+        self.target = call.recipient();
+        self.code = code;
+        self.call = call;
+        self.pc = 0;
+
+        loop {
+            // Check execution conditions
+            if !success || self.stopped || self.pc >= self.code.len() {
+                break;
+            }
+
+            // Process the next opcode
+            let opcode: Opcode = self.code[self.pc].try_into().unwrap();
+            let opcode_success = opcode.execute(self);
+
+            // Update control variables
+            success = opcode_success;
+        }
+
+        let result = self.call.result();
+        if success == false {
+            // Restore the execution context
+            *self = cache;
+        };
+
+        CallResult {
+            success,
+            result,
+        }
+    }
+
+    pub fn gas_left(&self) -> usize {
+        self.gas
     }
 }

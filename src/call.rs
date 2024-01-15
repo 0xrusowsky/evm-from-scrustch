@@ -23,6 +23,8 @@ pub struct Call {
     value: U256,
     #[serde(default)]
     view: bool,
+    #[serde(default, deserialize_with = "hex_string_to_bytes")]
+    result: Bytes,
 }
 
 impl Call {
@@ -47,6 +49,7 @@ impl Call {
             data,
             value,
             view,
+            result: Bytes::new(),
         }
     }
 
@@ -89,5 +92,14 @@ impl Call {
 
     pub fn view(&self) -> bool {
         self.view
+    }
+
+    pub fn result(&self) -> Bytes {
+        self.result.clone()
+    }
+
+    // Setters
+    pub fn set_result(&mut self, result: Bytes) {
+        self.result = result;
     }
 }

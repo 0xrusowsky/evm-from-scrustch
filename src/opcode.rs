@@ -4,6 +4,7 @@ use std::convert::TryFrom;
 use std::ops::{BitAnd, BitOr, BitXor, Not, Shl, Shr};
 
 use crate::types::{Bytes, Bytes32};
+use crate::call::Call;
 
 use super::ExecutionContext;
 
@@ -62,6 +63,8 @@ pub enum Opcode {
     MLOAD,
     MSTORE,
     MSTORE8,
+    SLOAD,
+    SSTORE,
     JUMP,
     JUMPI,
     PC,
@@ -132,6 +135,10 @@ pub enum Opcode {
     SWAP14,
     SWAP15,
     SWAP16,
+    CALL,
+    CALLCODE,
+    RETURN,
+    REVERT,
     INVALID,
 }
 
@@ -194,6 +201,8 @@ impl TryFrom<u8> for Opcode {
             0x51 => Ok(Opcode::MLOAD),
             0x52 => Ok(Opcode::MSTORE),
             0x53 => Ok(Opcode::MSTORE8),
+            0x54 => Ok(Opcode::SLOAD),
+            0x55 => Ok(Opcode::SSTORE),
             0x56 => Ok(Opcode::JUMP),
             0x57 => Ok(Opcode::JUMPI),
             0x58 => Ok(Opcode::PC),
@@ -264,6 +273,10 @@ impl TryFrom<u8> for Opcode {
             0x9D => Ok(Opcode::SWAP14),
             0x9E => Ok(Opcode::SWAP15),
             0x9F => Ok(Opcode::SWAP16),
+            0xF1 => Ok(Opcode::CALL),
+            0xF2 => Ok(Opcode::CALLCODE),
+            0xF3 => Ok(Opcode::RETURN),
+            0xFD => Ok(Opcode::REVERT),
             0xFE => Ok(Opcode::INVALID),
             // ... other opcodes
             _ => Err(format!("Invalid opcode: {}", value)),
@@ -1116,7 +1129,33 @@ impl Opcode {
                 ctx.pc += 1;
                 // SUCCESS
                 true
-            }
+            },
+            Opcode::SLOAD => {
+                // STACK
+                let key = ctx.stack.pop().to_u256();
+                // GAS
+                ctx.gas += self.fix_gas(); //+ self.state_access_gas(key);
+                // OPERATION
+                let value = ctx.storage.load(key);
+                ctx.stack.push(value);
+                // PC
+                ctx.pc += 1;
+                // SUCCESS
+                true
+            },
+            Opcode::SSTORE => {
+                // STACK
+                let key = ctx.stack.pop().to_u256();
+                let value = ctx.stack.pop();
+                // GAS
+                ctx.gas += self.fix_gas(); //+ self.state_access_gas(key);
+                // OPERATION
+                ctx.storage.store(key, value);
+                // PC
+                ctx.pc += 1;
+                // SUCCESS
+                true
+            },
             Opcode::JUMP => {
                 // STACK
                 let jumpdest = ctx.stack.pop().as_usize();
@@ -1935,7 +1974,98 @@ impl Opcode {
                 ctx.pc += 1;
                 // SUCCESS
                 true
-            }
+            },
+            Opcode::CALL => {
+                // STACK
+                let gas = ctx.stack.pop().to_u256();
+                let address = ctx.stack.pop().to_address();
+                let value = ctx.stack.pop().to_u256();
+                let args_offset = ctx.stack.pop().as_usize();
+                let args_size = ctx.stack.pop().as_usize();
+                let ret_offset = ctx.stack.pop().as_usize();
+                let ret_size = ctx.stack.pop().as_usize();
+                // GAS
+                ctx.gas += self.fix_gas();
+                // OPERATION
+                let data = ctx.memory.load(args_offset, args_size);
+                let call = Call::new(
+                    ctx.target,
+                    address,
+                    ctx.call.originator(),
+                    gas,
+                    U256::from(ctx.gas_left()),
+                    address,
+                    data,
+                    value,
+                    false
+                );
+                let call_result = ctx.execute_call(call);
+                let mut data = vec![0u8; ret_size];
+                data.copy_from_slice(&call_result.result[0..ret_size]);
+                ctx.memory.store(ret_offset, Bytes::from_vec(data));
+                // PC
+                ctx.pc += 1;
+                // SUCCESS
+                true
+            },
+            Opcode::CALLCODE => {
+                // STACK
+                let gas = ctx.stack.pop().to_u256();
+                let address = ctx.stack.pop().to_address();
+                let value = ctx.stack.pop().to_u256();
+                let args_offset = ctx.stack.pop().as_usize();
+                let args_size = ctx.stack.pop().as_usize();
+                let ret_offset = ctx.stack.pop().as_usize();
+                let ret_size = ctx.stack.pop().as_usize();
+                // GAS
+                ctx.gas += self.fix_gas();
+                // OPERATION
+                let data = ctx.memory.load(args_offset, args_size);
+                let call = Call::new(
+                    ctx.target,
+                    address,
+                    ctx.call.originator(),
+                    gas,
+                    U256::from(ctx.gas_left()),
+                    address,
+                    data,
+                    value,
+                    false
+                );
+                ctx.execute_call(call);
+                // PC
+                ctx.pc += 1;
+                // SUCCESS
+                true
+            },
+            Opcode::RETURN => {
+                // STACK
+                let offset = ctx.stack.pop().as_usize();
+                let size = ctx.stack.pop().as_usize();
+                // GAS
+                ctx.gas += self.fix_gas() * ctx.memory.expansion(offset, size);
+                // OPERATION
+                let value = ctx.memory.load(offset, size);
+                ctx.call.set_result(value);
+                // PC
+                ctx.pc += 1;
+                // SUCCESS
+                true
+            },
+            Opcode::REVERT => {
+                // STACK
+                let offset = ctx.stack.pop().as_usize();
+                let size = ctx.stack.pop().as_usize();
+                // GAS
+                ctx.gas += self.fix_gas() * ctx.memory.expansion(offset, size);
+                // OPERATION
+                let value = ctx.memory.load(offset, size);
+                ctx.call.set_result(value);
+                // PC
+                ctx.pc += 1;
+                // SUCCESS
+                false
+            },
             Opcode::INVALID => {
                 // PC
                 ctx.pc += 1;
