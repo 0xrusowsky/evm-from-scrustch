@@ -1,9 +1,9 @@
-use std::convert::TryFrom;
+use ethereum_types::U256;
 use sha3::{Digest, Keccak256};
-use ethereum_types::{U256, U512};
+use std::convert::TryFrom;
 use std::ops::{BitAnd, BitOr, BitXor, Not, Shl, Shr};
 
-use crate::utils::u64_to_u256;
+use crate::types::{Bytes, Bytes32};
 
 use super::ExecutionContext;
 
@@ -36,6 +36,7 @@ pub enum Opcode {
     SAR,
     SHA3,
     ADDRESS,
+    BALANCE,
     ORIGIN,
     CALLER,
     CALLVALUE,
@@ -45,11 +46,14 @@ pub enum Opcode {
     CODESIZE,
     CODECOPY,
     GASPRICE,
+    EXTCODESIZE,
+    EXTCODECOPY,
+    EXTCODEHASH,
     BLOCKHASH,
     COINBASE,
     TIMESTAMP,
     NUMBER,
-    PEVRANDAO,
+    PREVRANDAO,
     GASLIMIT,
     CHAINID,
     SELFBALANCE,
@@ -164,6 +168,7 @@ impl TryFrom<u8> for Opcode {
             0x1D => Ok(Opcode::SAR),
             0x20 => Ok(Opcode::SHA3),
             0x30 => Ok(Opcode::ADDRESS),
+            0x31 => Ok(Opcode::BALANCE),
             0x32 => Ok(Opcode::ORIGIN),
             0x33 => Ok(Opcode::CALLER),
             0x34 => Ok(Opcode::CALLVALUE),
@@ -173,11 +178,14 @@ impl TryFrom<u8> for Opcode {
             0x38 => Ok(Opcode::CODESIZE),
             0x39 => Ok(Opcode::CODECOPY),
             0x3A => Ok(Opcode::GASPRICE),
+            0x3B => Ok(Opcode::EXTCODESIZE),
+            0x3C => Ok(Opcode::EXTCODECOPY),
+            0x3F => Ok(Opcode::EXTCODEHASH),
             0x40 => Ok(Opcode::BLOCKHASH),
             0x41 => Ok(Opcode::COINBASE),
             0x42 => Ok(Opcode::TIMESTAMP),
             0x43 => Ok(Opcode::NUMBER),
-            0x44 => Ok(Opcode::PEVRANDAO),
+            0x44 => Ok(Opcode::PREVRANDAO),
             0x45 => Ok(Opcode::GASLIMIT),
             0x46 => Ok(Opcode::CHAINID),
             0x47 => Ok(Opcode::SELFBALANCE),
@@ -275,135 +283,135 @@ impl Opcode {
                 ctx.pc += 1;
                 // SUCCESS
                 true
-            },
+            }
             Opcode::ADD => {
                 // STACK
-                let a = ctx.stack.pop();
-                let b = ctx.stack.pop();
+                let a = ctx.stack.pop().to_u256();
+                let b = ctx.stack.pop().to_u256();
                 // GAS
                 ctx.gas += self.fix_gas();
                 // OPERATION
                 // rely on U256 overflowing_add to handle overflow
                 let (result, _) = a.overflowing_add(b);
-                ctx.stack.push(result);
+                ctx.stack.push_u256(result);
                 // PC
                 ctx.pc += 1;
                 // SUCCESS
                 true
-            },
+            }
             Opcode::MUL => {
                 // STACK
-                let a = ctx.stack.pop();
-                let b = ctx.stack.pop();
+                let a = ctx.stack.pop().to_u256();
+                let b = ctx.stack.pop().to_u256();
                 // GAS
                 ctx.gas += self.fix_gas();
                 // OPERATION
                 // rely on U256 overflowing_mul to handle overflow
                 let (result, _) = a.overflowing_mul(b);
-                ctx.stack.push(result);
+                ctx.stack.push_u256(result);
                 // PC
                 ctx.pc += 1;
                 // SUCCESS
                 true
-            },
+            }
             Opcode::SUB => {
                 // STACK
-                let a = ctx.stack.pop();
-                let b = ctx.stack.pop();
+                let a = ctx.stack.pop().to_u256();
+                let b = ctx.stack.pop().to_u256();
                 // GAS
                 ctx.gas += self.fix_gas();
                 // OPERATION
                 // rely on U256 overflowing_sub to handle underflow
                 let (result, _) = a.overflowing_sub(b);
-                ctx.stack.push(result);
+                ctx.stack.push_u256(result);
                 // PC
                 ctx.pc += 1;
                 // SUCCESS
                 true
-            },
+            }
             Opcode::DIV => {
                 // STACK
-                let a = ctx.stack.pop();
-                let b = ctx.stack.pop();
+                let a = ctx.stack.pop().to_u256();
+                let b = ctx.stack.pop().to_u256();
                 // GAS
                 ctx.gas += self.fix_gas();
                 // OPERATION
-                let result = if b.is_zero() {
-                    U256::zero()
-                } else {
-                    a / b
-                };
-                ctx.stack.push(result);
+                let result = if b.is_zero() { U256::zero() } else { a / b };
+                ctx.stack.push_u256(result);
                 // PC
                 ctx.pc += 1;
                 // SUCCESS
                 true
-            },
+            }
             Opcode::SDIV => {
                 // STACK
-                let a = ctx.stack.pop();
-                let b = ctx.stack.pop();
+                let a = ctx.stack.pop().to_u256();
+                let b = ctx.stack.pop().to_u256();
                 // GAS
                 ctx.gas += self.fix_gas();
                 // OPERATION
                 let result = if b.is_zero() {
                     U256::zero()
                 } else {
-                    let ( a_neg, a_twos ) = (a.bit(255), a.not().overflowing_add(U256::one()).0);
-                    let ( b_neg, b_twos ) = (b.bit(255), b.not().overflowing_add(U256::one()).0);
+                    let (a_neg, a_twos) = (a.bit(255), a.not().overflowing_add(U256::one()).0);
+                    let (b_neg, b_twos) = (b.bit(255), b.not().overflowing_add(U256::one()).0);
                     let div = if a_neg { a_twos } else { a } / if b_neg { b_twos } else { b };
-                    if a_neg ^ b_neg { div.not().overflowing_add(U256::one()).0 } else { div }
+                    if a_neg ^ b_neg {
+                        div.not().overflowing_add(U256::one()).0
+                    } else {
+                        div
+                    }
                 };
-                ctx.stack.push(result);
+                ctx.stack.push_u256(result);
                 // PC
                 ctx.pc += 1;
                 // SUCCESS
                 true
-            },
+            }
             Opcode::MOD => {
                 // STACK
-                let a = ctx.stack.pop();
-                let b = ctx.stack.pop();
+                let a = ctx.stack.pop().to_u256();
+                let b = ctx.stack.pop().to_u256();
                 // GAS
                 ctx.gas += self.fix_gas();
                 // OPERATION
-                let result = if b.is_zero() {
-                    U256::zero()
-                } else {
-                    a % b
-                };
-                ctx.stack.push(result);
+                let result = if b.is_zero() { U256::zero() } else { a % b };
+                ctx.stack.push_u256(result);
                 // PC
                 ctx.pc += 1;
                 // SUCCESS
                 true
-            },
+            }
             Opcode::SMOD => {
                 // STACK
-                let a = ctx.stack.pop();
-                let b = ctx.stack.pop();
+                let a = ctx.stack.pop().to_u256();
+                let b = ctx.stack.pop().to_u256();
                 // GAS
                 ctx.gas += self.fix_gas();
                 // OPERATION
                 let result = if b.is_zero() {
                     U256::zero()
                 } else {
-                    let ( a_neg, a_twos ) = (a.bit(255), a.not().overflowing_add(U256::one()).0);
-                    let ( b_neg, b_twos ) = (b.bit(255), b.not().overflowing_add(U256::one()).0);
+                    let (a_neg, a_twos) = (a.bit(255), a.not().overflowing_add(U256::one()).0);
+                    let (b_neg, b_twos) = (b.bit(255), b.not().overflowing_add(U256::one()).0);
                     let div = if a_neg { a_twos } else { a } % if b_neg { b_twos } else { b };
-                    if a_neg | b_neg { div.not().overflowing_add(U256::one()).0 } else { div }
+                    if a_neg | b_neg {
+                        div.not().overflowing_add(U256::one()).0
+                    } else {
+                        div
+                    }
                 };
-                ctx.stack.push(result);
+                ctx.stack.push_u256(result);
                 // PC
                 ctx.pc += 1;
                 // SUCCESS
                 true
-            },
+            }
             Opcode::ADDMOD => {
                 // STACK
-                let a: U512 = ctx.stack.pop().try_into().unwrap();
-                let b: U512 = ctx.stack.pop().try_into().unwrap();
-                let c: U256 = ctx.stack.pop();
+                let a = ctx.stack.pop().to_u512();
+                let b = ctx.stack.pop().to_u512();
+                let c = ctx.stack.pop().to_u256();
                 // GAS
                 ctx.gas += self.fix_gas();
                 // OPERATION
@@ -412,17 +420,17 @@ impl Opcode {
                 } else {
                     ((a + b) % c).try_into().unwrap()
                 };
-                ctx.stack.push(result);
+                ctx.stack.push_u256(result);
                 // PC
                 ctx.pc += 1;
                 // SUCCESS
                 true
-            },
+            }
             Opcode::MULMOD => {
                 // STACK
-                let a: U512 = ctx.stack.pop().try_into().unwrap();
-                let b: U512 = ctx.stack.pop().try_into().unwrap();
-                let c: U256 = ctx.stack.pop();
+                let a = ctx.stack.pop().to_u512();
+                let b = ctx.stack.pop().to_u512();
+                let c = ctx.stack.pop().to_u256();
                 // GAS
                 ctx.gas += self.fix_gas();
                 // OPERATION
@@ -431,104 +439,118 @@ impl Opcode {
                 } else {
                     ((a * b) % c).try_into().unwrap()
                 };
-                ctx.stack.push(result);
+                ctx.stack.push_u256(result);
                 // PC
                 ctx.pc += 1;
                 // SUCCESS
                 true
-            },
+            }
             Opcode::EXP => {
                 // STACK
-                let a = ctx.stack.pop();
-                let b = ctx.stack.pop();
+                let a = ctx.stack.pop().to_u256();
+                let b = ctx.stack.pop().to_u256();
                 // GAS
-                let var_gas = if b != U256::zero() { 50 * (b.bits() + 7) } else { 0 };
+                let var_gas = if b != U256::zero() {
+                    50 * (b.bits() + 7)
+                } else {
+                    0
+                };
                 ctx.gas += self.fix_gas() + var_gas;
                 // OPERATION
                 let (result, _) = a.overflowing_pow(b);
-                ctx.stack.push(result);
+                ctx.stack.push_u256(result);
                 // PC
                 ctx.pc += 1;
                 // SUCCESS
                 true
-            },
+            }
             Opcode::SIGNEXTEND => {
                 // STACK
-                let a = ctx.stack.pop();
-                let b = ctx.stack.pop();
+                let exp = ctx.stack.pop().as_usize();
+                let num = ctx.stack.pop().to_u256();
                 // GAS
                 ctx.gas += self.fix_gas();
                 // OPERATION
-                let id_b = (a.as_usize() + 1) * 8;
-                let result = if b.bit(id_b - 1) {
-                    U256::MAX.shl(id_b).bitor(b)
-                } else { b };
-                ctx.stack.push(result);
+                let id = (exp + 1) * 8;
+                let result = if num.bit(id - 1) {
+                    U256::MAX.shl(id).bitor(num)
+                } else {
+                    num
+                };
+                ctx.stack.push_u256(result);
                 // PC
                 ctx.pc += 1;
                 // SUCCESS
                 true
-            },
+            }
             Opcode::LT => {
                 // STACK
-                let a = ctx.stack.pop();
-                let b = ctx.stack.pop();
+                let a = ctx.stack.pop().to_u256();
+                let b = ctx.stack.pop().to_u256();
                 // GAS
                 ctx.gas += self.fix_gas();
                 // OPERATION
                 let result = if a < b { U256::one() } else { U256::zero() };
-                ctx.stack.push(result);
+                ctx.stack.push_u256(result);
                 // PC
                 ctx.pc += 1;
                 // SUCCESS
                 true
-            },
+            }
             Opcode::GT => {
                 // STACK
-                let a = ctx.stack.pop();
-                let b = ctx.stack.pop();
+                let a = ctx.stack.pop().to_u256();
+                let b = ctx.stack.pop().to_u256();
                 // GAS
                 ctx.gas += self.fix_gas();
                 // OPERATION
                 let result = if a > b { U256::one() } else { U256::zero() };
-                ctx.stack.push(result);
+                ctx.stack.push_u256(result);
                 // PC
                 ctx.pc += 1;
                 // SUCCESS
                 true
-            },
+            }
             Opcode::SLT => {
                 // STACK
-                let a = ctx.stack.pop();
-                let b = ctx.stack.pop();
+                let a = ctx.stack.pop().to_u256();
+                let b = ctx.stack.pop().to_u256();
                 // GAS
                 ctx.gas += self.fix_gas();
                 // OPERATION
                 let (a_twos, _) = a.not().overflowing_add(U256::one());
                 let (b_twos, _) = b.not().overflowing_add(U256::one());
-                let result = if a_twos > b_twos { U256::one() } else { U256::zero() };
-                ctx.stack.push(result);
+                let result = if a_twos > b_twos {
+                    U256::one()
+                } else {
+                    U256::zero()
+                };
+                ctx.stack.push_u256(result);
                 // PC
                 ctx.pc += 1;
                 // SUCCESS
                 true
-            },
+            }
             Opcode::SGT => {
                 // STACK
-                let a = ctx.stack.pop();
-                let b = ctx.stack.pop();
+                let a = ctx.stack.pop().to_u256();
+                let b = ctx.stack.pop().to_u256();
                 // GAS
                 ctx.gas += self.fix_gas();
                 // OPERATION
                 let (a_twos, _) = a.not().overflowing_add(U256::one());
                 let (b_twos, _) = b.not().overflowing_add(U256::one());
-                let result = if a_twos < b_twos { U256::one() } else { U256::zero() };
-                ctx.stack.push(result);
+                let result = if a_twos < b_twos {
+                    U256::one()
+                } else {
+                    U256::zero()
+                };
+                ctx.stack.push_u256(result);
                 // PC
                 ctx.pc += 1;
                 // SUCCESS
                 true
-            },
+            }
             Opcode::EQ => {
                 // STACK
                 let a = ctx.stack.pop();
@@ -536,23 +558,29 @@ impl Opcode {
                 // GAS
                 ctx.gas += self.fix_gas();
                 // OPERATION
-                let result = if a == b { U256::one() } else { U256::zero() };
-                ctx.stack.push(result);
+                ctx.stack.push(if a == b {
+                    Bytes32::one()
+                } else {
+                    Bytes32::zero()
+                });
                 // PC
                 ctx.pc += 1;
                 // SUCCESS
                 true
-            },
+            }
             Opcode::ISZERO => {
                 // STACK
                 let a = ctx.stack.pop();
-                let result = if a.is_zero() { U256::one() } else { U256::zero() };
-                ctx.stack.push(result);
+                ctx.stack.push(if a.is_zero() {
+                    Bytes32::one()
+                } else {
+                    Bytes32::zero()
+                });
                 // PC
                 ctx.pc += 1;
                 // SUCCESS
                 true
-            },
+            }
             Opcode::AND => {
                 // STACK
                 let a = ctx.stack.pop();
@@ -566,7 +594,7 @@ impl Opcode {
                 ctx.pc += 1;
                 // SUCCESS
                 true
-            },
+            }
             Opcode::OR => {
                 // STACK
                 let a = ctx.stack.pop();
@@ -580,7 +608,7 @@ impl Opcode {
                 ctx.pc += 1;
                 // SUCCESS
                 true
-            },
+            }
             Opcode::XOR => {
                 // STACK
                 let a = ctx.stack.pop();
@@ -594,7 +622,7 @@ impl Opcode {
                 ctx.pc += 1;
                 // SUCCESS
                 true
-            },
+            }
             Opcode::NOT => {
                 // STACK
                 let a = ctx.stack.pop();
@@ -607,126 +635,154 @@ impl Opcode {
                 ctx.pc += 1;
                 // SUCCESS
                 true
-            },
+            }
             Opcode::BYTE => {
                 // STACK
-                let a = ctx.stack.pop();
-                let b = ctx.stack.pop();
+                let index = ctx.stack.pop().as_usize();
+                let word = ctx.stack.pop();
                 // GAS
                 ctx.gas += self.fix_gas();
                 // OPERATION
-                let a = a.as_usize();
-                let result = U256::from(if a < 32 {b.byte(31 - a)} else { 0 });
+                let result = Bytes32::from_vec(vec![word.get_byte(index)]);
                 ctx.stack.push(result);
                 // PC
                 ctx.pc += 1;
                 // SUCCESS
                 true
-            },
+            }
             Opcode::SHL => {
                 // STACK
-                let a = ctx.stack.pop();
-                let b = ctx.stack.pop();
+                // let index = ctx.stack.pop().as_usize();
+                let index = ctx.stack.pop();
+                println!("index.as_usize(): {:#X}", index.as_usize());
+                println!("index.to_u256(): {:#X}", index.to_u256());
+                println!(
+                    "index.to_u256.as_usize(): {:#X}",
+                    index.to_u256().as_usize()
+                );
+                let word = ctx.stack.pop().to_u256();
                 // GAS
                 ctx.gas += self.fix_gas();
                 // OPERATION
-                let result = b.shl(a.as_usize());
-                ctx.stack.push(result);
+                let result = word.shl(index.as_usize());
+                ctx.stack.push_u256(result);
                 // PC
                 ctx.pc += 1;
                 // SUCCESS
                 true
-            },
+            }
             Opcode::SHR => {
                 // STACK
-                let a = ctx.stack.pop();
-                let b = ctx.stack.pop();
+                // let index = ctx.stack.pop().as_usize();
+                let index = ctx.stack.pop();
+                println!("index.as_usize(): {:#X}", index.as_usize());
+                println!("index.to_u256(): {:#X}", index.to_u256());
+                println!(
+                    "index.to_u256.as_usize(): {:#X}",
+                    index.to_u256().as_usize()
+                );
+                let word = ctx.stack.pop().to_u256();
                 // GAS
                 ctx.gas += self.fix_gas();
                 // OPERATION
-                let result = b.shr(a.as_usize());
-                ctx.stack.push(result);
+                let result = word.shr(index.as_usize());
+                ctx.stack.push_u256(result);
                 // PC
                 ctx.pc += 1;
                 // SUCCESS
                 true
-            },
+            }
             Opcode::SAR => {
                 // STACK
-                let a = ctx.stack.pop();
-                let b = ctx.stack.pop();
+                let index = ctx.stack.pop().as_usize();
+                let word = ctx.stack.pop().to_u256();
                 // GAS
                 ctx.gas += self.fix_gas();
                 // OPERATION
-                let result = if b.bit(255) { 
-                    if a.gt( &U256::from(255) ) {
+                let result = if word.bit(255) {
+                    if index > 255 {
                         U256::MAX
                     } else {
-                        b.shr(a.as_usize()).bitor(U256::MAX.shl(U256::from(255) - a))
+                        word.shr(index)
+                            .bitor(U256::MAX.shl(U256::from(255) - index))
                     }
                 } else {
-                    b.shr(a.as_usize())
+                    word.shr(index)
                 };
-                ctx.stack.push(result);
+                ctx.stack.push_u256(result);
                 // PC
                 ctx.pc += 1;
                 // SUCCESS
                 true
-            },
+            }
             Opcode::SHA3 => {
                 // STACK
-                let offset = ctx.stack.pop();
-                let size = ctx.stack.pop();
+                let offset = ctx.stack.pop().as_usize();
+                let size = ctx.stack.pop().as_usize();
                 // GAS
-                ctx.gas += self.fix_gas() + 6 * (size.as_usize() + 31) / 32;
+                ctx.gas += self.fix_gas() + 6 * (size + 31) / 32;
                 // // OPERATION
-                let result = U256::from(Keccak256::digest(ctx.memory.load(offset.as_usize(), size.as_usize())).as_slice());
+                let result = Bytes32::from_slice(
+                    Keccak256::digest(ctx.memory.load(offset, size).as_slice()).as_slice(),
+                );
                 ctx.stack.push(result);
                 // PC
                 ctx.pc += 1;
                 // SUCCESS
                 true
-            },
+            }
             Opcode::ADDRESS => {
                 // GAS
                 ctx.gas += self.fix_gas();
                 // OPERATION
-                ctx.stack.push(ctx.call.recipient().to_u256());
+                ctx.stack.push_address(ctx.call.recipient());
                 // PC
                 ctx.pc += 1;
                 // SUCCESS
                 true
-            },
+            }
+            Opcode::BALANCE => {
+                // STACK
+                let address = ctx.stack.pop().to_address();
+                // GAS
+                ctx.gas += self.fix_gas();
+                // OPERATION
+                ctx.stack.push_u256(ctx.state.balance(&address));
+                // PC
+                ctx.pc += 1;
+                // SUCCESS
+                true
+            }
             Opcode::ORIGIN => {
                 // GAS
                 ctx.gas += self.fix_gas();
                 // OPERATION
-                ctx.stack.push(ctx.call.originator().to_u256());
+                ctx.stack.push_address(ctx.call.originator());
                 // PC
                 ctx.pc += 1;
                 // SUCCESS
                 true
-            },
+            }
             Opcode::CALLER => {
                 // GAS
                 ctx.gas += self.fix_gas();
                 // OPERATION
-                ctx.stack.push(ctx.call.sender().to_u256());
+                ctx.stack.push_address(ctx.call.sender());
                 // PC
                 ctx.pc += 1;
                 // SUCCESS
                 true
-            },
+            }
             Opcode::CALLVALUE => {
                 // GAS
                 ctx.gas += self.fix_gas();
                 // OPERATION
-                ctx.stack.push(ctx.call.value());
+                ctx.stack.push_u256(ctx.call.value());
                 // PC
                 ctx.pc += 1;
                 // SUCCESS
                 true
-            },
+            }
             Opcode::CALLDATALOAD => {
                 // STACK
                 let offset = ctx.stack.pop().as_usize();
@@ -745,23 +801,23 @@ impl Opcode {
                 } else {
                     result[..len].copy_from_slice(&calldata[offset..end]);
                 }
-                ctx.stack.push(U256::from_big_endian(&result));
+                ctx.stack.push(Bytes32::from_slice(&result));
                 // PC
                 ctx.pc += 1;
                 // SUCCESS
                 true
-            },
+            }
             Opcode::CALLDATASIZE => {
                 // GAS
                 ctx.gas += self.fix_gas();
                 // OPERATION
                 let result = ctx.call.data_size();
-                ctx.stack.push(result.into());
+                ctx.stack.push_usize(result);
                 // PC
                 ctx.pc += 1;
                 // SUCCESS
                 true
-            },
+            }
             Opcode::CALLDATACOPY => {
                 // STACK
                 let memory_offset = ctx.stack.pop().as_usize();
@@ -782,28 +838,30 @@ impl Opcode {
                 } else {
                     result[..len].copy_from_slice(&calldata[offset..end]);
                 }
-                ctx.memory.store(memory_offset, &result);
+                ctx.memory.store(memory_offset, Bytes::from_vec(result));
                 // PC
                 ctx.pc += 1;
                 // SUCCESS
                 true
-            },
+            }
             Opcode::CODESIZE => {
                 // GAS
                 ctx.gas += self.fix_gas();
                 // OPERATION
-                ctx.stack.push(ctx.code_size().into());
+                ctx.stack.push_usize(ctx.code_size());
                 // PC
                 ctx.pc += 1;
                 // SUCCESS
                 true
-            },
+            }
             Opcode::CODECOPY => {
                 // STACK
                 let memory_offset = ctx.stack.pop().as_usize();
                 let offset = ctx.stack.pop().as_usize();
                 let mut size = ctx.stack.pop().as_usize();
-                if size > ctx.code_size() { size = ctx.code_size() }
+                if size > ctx.code_size() {
+                    size = ctx.code_size()
+                }
                 // GAS
                 ctx.gas += self.fix_gas();
                 // OPERATION
@@ -819,22 +877,76 @@ impl Opcode {
                 } else {
                     result[..len].copy_from_slice(&code[offset..end]);
                 }
-                ctx.memory.store(memory_offset, &result);
+                ctx.memory.store(memory_offset, Bytes::from_vec(result));
                 // PC
                 ctx.pc += 1;
                 // SUCCESS
                 true
-            },
+            }
             Opcode::GASPRICE => {
                 // GAS
                 ctx.gas += self.fix_gas();
                 // OPERATION
-                ctx.stack.push(ctx.call.gas_price());
+                ctx.stack.push_u256(ctx.call.gas_price());
                 // PC
                 ctx.pc += 1;
                 // SUCCESS
                 true
-            },
+            }
+            Opcode::EXTCODESIZE => {
+                // STACK
+                let address = ctx.stack.pop().to_address();
+                // GAS
+                ctx.gas += self.fix_gas();
+                // OPERATION
+                ctx.stack.push_usize(ctx.state.code_size(&address));
+                // PC
+                ctx.pc += 1;
+                // SUCCESS
+                true
+            }
+            Opcode::EXTCODECOPY => {
+                // STACK
+                let address = ctx.stack.pop().to_address();
+                let memory_offset = ctx.stack.pop().as_usize();
+                let offset = ctx.stack.pop().as_usize();
+                let mut size = ctx.stack.pop().as_usize();
+                // GAS
+                ctx.gas += self.fix_gas();
+                // OPERATION
+                let code = ctx.state.code(&address);
+                if size > code.len() {
+                    size = code.len()
+                }
+                let mut result = vec![0u8; size];
+                let (end, len) = if offset + size > code.len() {
+                    (size, size - offset)
+                } else {
+                    (offset + size, size)
+                };
+                if len == size {
+                    result.copy_from_slice(&code[offset..end]);
+                } else {
+                    result[..len].copy_from_slice(&code[offset..end]);
+                }
+                ctx.memory.store(memory_offset, Bytes::from_vec(result));
+                // PC
+                ctx.pc += 1;
+                // SUCCESS
+                true
+            }
+            Opcode::EXTCODEHASH => {
+                // STACK
+                let address = ctx.stack.pop().to_address();
+                // GAS
+                ctx.gas += self.fix_gas();
+                // OPERATION
+                ctx.stack.push(ctx.state.code_hash(&address));
+                // PC
+                ctx.pc += 1;
+                // SUCCESS
+                true
+            }
             Opcode::BLOCKHASH => {
                 // STACK
                 let block_number = ctx.stack.pop();
@@ -850,7 +962,7 @@ impl Opcode {
                 ctx.pc += 1;
                 // SUCCESS
                 true
-            },
+            }
             Opcode::COINBASE => {
                 // GAS
                 ctx.gas += self.fix_gas();
@@ -859,91 +971,101 @@ impl Opcode {
                     Some(coinbase) => coinbase.to_u256(),
                     None => U256::zero(),
                 };
-                ctx.stack.push(result);
+                ctx.stack.push_u256(result);
                 // PC
                 ctx.pc += 1;
                 // SUCCESS
                 true
-            },
+            }
             Opcode::TIMESTAMP => {
                 // GAS
                 ctx.gas += self.fix_gas();
                 // OPERATION
-                ctx.stack.push(ctx.block.timestamp().into());
+                ctx.stack.push_u256(ctx.block.timestamp());
                 // PC
                 ctx.pc += 1;
                 // SUCCESS
                 true
-            },
+            }
             Opcode::NUMBER => {
                 // GAS
                 ctx.gas += self.fix_gas();
                 // OPERATION
                 let result = match ctx.block.number() {
-                    Some(number) => {
-                        u64_to_u256(number)
-                    },
+                    Some(number) => Bytes32::from_u64(number).to_u256(),
                     None => U256::zero(),
                 };
-                ctx.stack.push(result);
+                ctx.stack.push_u256(result);
                 // PC
                 ctx.pc += 1;
                 // SUCCESS
                 true
-            },
-            Opcode::PEVRANDAO => {
+            }
+            Opcode::PREVRANDAO => {
                 // GAS
                 ctx.gas += self.fix_gas();
                 // OPERATION
-                ctx.stack.push(ctx.block.difficulty());
+                let result = match ctx.block.prev_randao() {
+                    Some(number) => number,
+                    // If block.prev_randao is None, use block.difficulty instead
+                    None => match ctx.block.difficulty() {
+                        Some(number) => number,
+                        None => U256::zero(),
+                    },
+                };
+                ctx.stack.push_u256(result);
                 // PC
                 ctx.pc += 1;
                 // SUCCESS
                 true
-            },
+            }
             Opcode::GASLIMIT => {
                 // GAS
                 ctx.gas += self.fix_gas();
                 // OPERATION
-                ctx.stack.push(ctx.block.gas_limit().into());
+                ctx.stack.push_u256(ctx.block.gas_limit());
                 // PC
                 ctx.pc += 1;
                 // SUCCESS
                 true
-            },
+            }
             Opcode::CHAINID => {
                 // GAS
                 ctx.gas += self.fix_gas();
                 // OPERATION
-                ctx.stack.push(u64_to_u256(ctx.block.chain_id()));
+                let chain_id = Bytes32::from_u64(ctx.block.chain_id()).to_u256();
+                ctx.stack.push_u256(chain_id);
                 // PC
                 ctx.pc += 1;
                 // SUCCESS
                 true
-            },
+            }
             Opcode::SELFBALANCE => {
+                // STACK
+                let address = ctx.call.recipient();
                 // GAS
                 ctx.gas += self.fix_gas();
                 // OPERATION
-                //
+                ctx.stack.push_u256(ctx.state.balance(&address));
                 // PC
                 ctx.pc += 1;
                 // SUCCESS
                 true
-            },
+            }
             Opcode::BASEFEE => {
                 // GAS
                 ctx.gas += self.fix_gas();
                 // OPERATION
-                match ctx.block.base_fee() {
-                    Some(base_fee) => ctx.stack.push(base_fee),
-                    None => ctx.stack.push(U256::zero()),
+                let base_fee = match ctx.block.base_fee() {
+                    Some(base_fee) => base_fee,
+                    None => U256::zero(),
                 };
+                ctx.stack.push_u256(base_fee);
                 // PC
                 ctx.pc += 1;
                 // SUCCESS
                 true
-            },
+            }
             Opcode::POP => {
                 // GAS
                 ctx.gas += self.fix_gas();
@@ -953,7 +1075,7 @@ impl Opcode {
                 ctx.pc += 1;
                 // SUCCESS
                 true
-            },
+            }
             Opcode::MLOAD => {
                 // STACK
                 let offset = ctx.stack.pop();
@@ -961,7 +1083,7 @@ impl Opcode {
                 ctx.gas += self.fix_gas() * ctx.memory.expansion(offset.as_usize(), 32);
                 // OPERATION
                 let value = ctx.memory.load(offset.as_usize(), 32);
-                ctx.stack.push(U256::from_big_endian(value));
+                ctx.stack.push(value.as_bytes32());
                 // PC
                 ctx.pc += 1;
                 // SUCCESS
@@ -974,7 +1096,8 @@ impl Opcode {
                 // GAS
                 ctx.gas += self.fix_gas() * ctx.memory.expansion(offset.as_usize(), 32);
                 // OPERATION
-                ctx.memory.store(offset.as_usize(), &<[u8; 32]>::from(value));
+                ctx.memory
+                    .store(offset.as_usize(), Bytes::from_bytes32(value));
                 // PC
                 ctx.pc += 1;
                 // SUCCESS
@@ -984,11 +1107,11 @@ impl Opcode {
                 // STACK
                 let offset = ctx.stack.pop();
                 let value = ctx.stack.pop();
-                println!("offset: {:#X}, value: {:#X}", offset, value.byte(0));
                 // GAS
                 ctx.gas += self.fix_gas() * ctx.memory.expansion(offset.as_usize(), 1);
                 // OPERATION
-                ctx.memory.store(offset.as_usize(), &[value.byte(0)]);
+                ctx.memory
+                    .store(offset.as_usize(), Bytes::from_byte(value.get_byte(31)));
                 // PC
                 ctx.pc += 1;
                 // SUCCESS
@@ -996,80 +1119,79 @@ impl Opcode {
             }
             Opcode::JUMP => {
                 // STACK
-                let a = ctx.stack.pop();
+                let jumpdest = ctx.stack.pop().as_usize();
                 // GAS
                 ctx.gas += self.fix_gas();
                 // OPERATION
-                let pc_new = a.as_usize();
-                match validate_jumpdest(&ctx.code, pc_new) {
+                match validate_jumpdest(&ctx.code, jumpdest) {
                     true => {
                         // PC
-                        ctx.pc = pc_new;
+                        ctx.pc = jumpdest;
                         // SUCCESS
                         true
-                    },
+                    }
                     false => false,
                 }
-            },
+            }
             Opcode::JUMPI => {
                 // STACK
-                let a = ctx.stack.pop();
-                let b = ctx.stack.pop();
+                let jumpdest = ctx.stack.pop().as_usize();
+                let condition = ctx.stack.pop().to_u256();
                 // GAS
                 ctx.gas += self.fix_gas();
                 // OPERATION
-                match b.is_zero() {
+                match condition.is_zero() {
                     true => {
                         // PC
                         ctx.pc += 1;
                         // SUCCESS
                         true
-                    },
+                    }
                     false => {
-                        let pc_new = a.as_usize();
-                        match validate_jumpdest(&ctx.code, pc_new) {
+                        match validate_jumpdest(&ctx.code, jumpdest) {
                             true => {
                                 // PC
-                                ctx.pc = pc_new;
+                                ctx.pc = jumpdest;
                                 // SUCCESS
                                 true
-                            },
+                            }
                             false => false,
                         }
-                    },
+                    }
                 }
-            },
+            }
             Opcode::PC => {
                 // GAS
                 ctx.gas += self.fix_gas();
                 // OPERATION
-                ctx.stack.push(U256::from(ctx.pc));
+                ctx.stack.push_usize(ctx.pc);
                 // PC
                 ctx.pc += 1;
                 // SUCCESS
                 true
-            },
+            }
             Opcode::MSIZE => {
                 // GAS
                 ctx.gas += self.fix_gas();
                 // OPERATION
-                ctx.stack.push(U256::from(ctx.memory.size()));
+                ctx.stack.push_usize(ctx.memory.size());
                 // PC
                 ctx.pc += 1;
                 // SUCCESS
                 true
-            },
+            }
             Opcode::GAS => {
                 // GAS
                 ctx.gas += self.fix_gas();
                 // OPERATION
+                // TODO
                 // ctx.stack.push(U256::from(ctx.gas));
-                ctx.stack.push(U256::max_value());
+                ctx.stack.push_u256(U256::max_value());
                 // PC
                 ctx.pc += 1;
                 // SUCCESS
                 true
-            },
+            }
             Opcode::JUMPDEST => {
                 // GAS
                 ctx.gas += self.fix_gas();
@@ -1077,359 +1199,359 @@ impl Opcode {
                 ctx.pc += 1;
                 // SUCCESS
                 true
-            },
+            }
             Opcode::PUSH1 => {
                 // GAS
                 ctx.gas += self.fix_gas();
                 // OPERATION
-                let value = ctx.code[ctx.pc + 1];
-                ctx.stack.push(value.into());
+                let value = &[ctx.code[ctx.pc + 1]];
+                ctx.stack.push(Bytes32::from_slice(value));
                 // PC
                 ctx.pc += 2;
                 // SUCCESS
                 true
-            },
+            }
             Opcode::PUSH2 => {
                 // GAS
                 ctx.gas += self.fix_gas();
                 // OPERATION
                 let value = &ctx.code[ctx.pc + 1..ctx.pc + 3];
-                ctx.stack.push(value.into());
+                ctx.stack.push(Bytes32::from_slice(value));
                 // PC
                 ctx.pc += 3;
                 // SUCCESS
                 true
-            },
+            }
             Opcode::PUSH3 => {
                 // GAS
                 ctx.gas += self.fix_gas();
                 // OPERATION
                 let value = &ctx.code[ctx.pc + 1..ctx.pc + 4];
-                ctx.stack.push(value.into());
+                ctx.stack.push(Bytes32::from_slice(value));
                 // PC
                 ctx.pc += 4;
                 // SUCCESS
                 true
-            },
+            }
             Opcode::PUSH4 => {
                 // GAS
                 ctx.gas += self.fix_gas();
                 // OPERATION
                 let value = &ctx.code[ctx.pc + 1..ctx.pc + 5];
-                ctx.stack.push(value.into());
+                ctx.stack.push(Bytes32::from_slice(value));
                 // PC
                 ctx.pc += 5;
                 // SUCCESS
                 true
-            },
+            }
             Opcode::PUSH5 => {
                 // GAS
                 ctx.gas += self.fix_gas();
                 // OPERATION
                 let value = &ctx.code[ctx.pc + 1..ctx.pc + 6];
-                ctx.stack.push(value.into());
+                ctx.stack.push(Bytes32::from_slice(value));
                 // PC
                 ctx.pc += 6;
                 // SUCCESS
                 true
-            },
+            }
             Opcode::PUSH6 => {
                 // GAS
                 ctx.gas += self.fix_gas();
                 // OPERATION
                 let value = &ctx.code[ctx.pc + 1..ctx.pc + 7];
-                ctx.stack.push(value.into());
+                ctx.stack.push(Bytes32::from_slice(value));
                 // PC
                 ctx.pc += 7;
                 // SUCCESS
                 true
-            },
+            }
             Opcode::PUSH7 => {
                 // GAS
                 ctx.gas += self.fix_gas();
                 // OPERATION
                 let value = &ctx.code[ctx.pc + 1..ctx.pc + 8];
-                ctx.stack.push(value.into());
+                ctx.stack.push(Bytes32::from_slice(value));
                 // PC
                 ctx.pc += 8;
                 // SUCCESS
                 true
-            },
+            }
             Opcode::PUSH8 => {
                 // GAS
                 ctx.gas += self.fix_gas();
                 // OPERATION
                 let value = &ctx.code[ctx.pc + 1..ctx.pc + 9];
-                ctx.stack.push(value.into());
+                ctx.stack.push(Bytes32::from_slice(value));
                 // PC
                 ctx.pc += 9;
                 // SUCCESS
                 true
-            },
+            }
             Opcode::PUSH9 => {
                 // GAS
                 ctx.gas += self.fix_gas();
                 // OPERATION
                 let value = &ctx.code[ctx.pc + 1..ctx.pc + 10];
-                ctx.stack.push(value.into());
+                ctx.stack.push(Bytes32::from_slice(value));
                 // PC
                 ctx.pc += 10;
                 // SUCCESS
                 true
-            },
+            }
             Opcode::PUSH10 => {
                 // GAS
                 ctx.gas += self.fix_gas();
                 // OPERATION
                 let value = &ctx.code[ctx.pc + 1..ctx.pc + 11];
-                ctx.stack.push(value.into());
+                ctx.stack.push(Bytes32::from_slice(value));
                 // PC
                 ctx.pc += 11;
                 // SUCCESS
                 true
-            },
+            }
             Opcode::PUSH11 => {
                 // GAS
                 ctx.gas += self.fix_gas();
                 // OPERATION
                 let value = &ctx.code[ctx.pc + 1..ctx.pc + 12];
-                ctx.stack.push(value.into());
+                ctx.stack.push(Bytes32::from_slice(value));
                 // PC
                 ctx.pc += 12;
                 // SUCCESS
                 true
-            },
+            }
             Opcode::PUSH12 => {
                 // GAS
                 ctx.gas += self.fix_gas();
                 // OPERATION
                 let value = &ctx.code[ctx.pc + 1..ctx.pc + 13];
-                ctx.stack.push(value.into());
+                ctx.stack.push(Bytes32::from_slice(value));
                 // PC
                 ctx.pc += 13;
                 // SUCCESS
                 true
-            },
+            }
             Opcode::PUSH13 => {
                 // GAS
                 ctx.gas += self.fix_gas();
                 // OPERATION
                 let value = &ctx.code[ctx.pc + 1..ctx.pc + 14];
-                ctx.stack.push(value.into());
+                ctx.stack.push(Bytes32::from_slice(value));
                 // PC
                 ctx.pc += 14;
                 // SUCCESS
                 true
-            },
+            }
             Opcode::PUSH14 => {
                 // GAS
                 ctx.gas += self.fix_gas();
                 // OPERATION
                 let value = &ctx.code[ctx.pc + 1..ctx.pc + 15];
-                ctx.stack.push(value.into());
+                ctx.stack.push(Bytes32::from_slice(value));
                 // PC
                 ctx.pc += 15;
                 // SUCCESS
                 true
-            },
+            }
             Opcode::PUSH15 => {
                 // GAS
                 ctx.gas += self.fix_gas();
                 // OPERATION
                 let value = &ctx.code[ctx.pc + 1..ctx.pc + 16];
-                ctx.stack.push(value.into());
+                ctx.stack.push(Bytes32::from_slice(value));
                 // PC
                 ctx.pc += 16;
                 // SUCCESS
                 true
-            },
+            }
             Opcode::PUSH16 => {
                 // GAS
                 ctx.gas += self.fix_gas();
                 // OPERATION
                 let value = &ctx.code[ctx.pc + 1..ctx.pc + 17];
-                ctx.stack.push(value.into());
+                ctx.stack.push(Bytes32::from_slice(value));
                 // PC
                 ctx.pc += 17;
                 // SUCCESS
                 true
-            },
+            }
             Opcode::PUSH17 => {
                 // GAS
                 ctx.gas += self.fix_gas();
                 // OPERATION
                 let value = &ctx.code[ctx.pc + 1..ctx.pc + 18];
-                ctx.stack.push(value.into());
+                ctx.stack.push(Bytes32::from_slice(value));
                 // PC
                 ctx.pc += 18;
                 // SUCCESS
                 true
-            },
+            }
             Opcode::PUSH18 => {
                 // GAS
                 ctx.gas += self.fix_gas();
                 // OPERATION
                 let value = &ctx.code[ctx.pc + 1..ctx.pc + 19];
-                ctx.stack.push(value.into());
+                ctx.stack.push(Bytes32::from_slice(value));
                 // PC
                 ctx.pc += 19;
                 // SUCCESS
                 true
-            },
+            }
             Opcode::PUSH19 => {
                 // GAS
                 ctx.gas += self.fix_gas();
                 // OPERATION
                 let value = &ctx.code[ctx.pc + 1..ctx.pc + 20];
-                ctx.stack.push(value.into());
+                ctx.stack.push(Bytes32::from_slice(value));
                 // PC
                 ctx.pc += 20;
                 // SUCCESS
                 true
-            },
+            }
             Opcode::PUSH20 => {
                 // GAS
                 ctx.gas += self.fix_gas();
                 // OPERATION
                 let value = &ctx.code[ctx.pc + 1..ctx.pc + 21];
-                ctx.stack.push(value.into());
+                ctx.stack.push(Bytes32::from_slice(value));
                 // PC
                 ctx.pc += 21;
                 // SUCCESS
                 true
-            },
+            }
             Opcode::PUSH21 => {
                 // GAS
                 ctx.gas += self.fix_gas();
                 // OPERATION
                 let value = &ctx.code[ctx.pc + 1..ctx.pc + 22];
-                ctx.stack.push(value.into());
+                ctx.stack.push(Bytes32::from_slice(value));
                 // PC
                 ctx.pc += 22;
                 // SUCCESS
                 true
-            },
+            }
             Opcode::PUSH22 => {
                 // GAS
                 ctx.gas += self.fix_gas();
                 // OPERATION
                 let value = &ctx.code[ctx.pc + 1..ctx.pc + 23];
-                ctx.stack.push(value.into());
+                ctx.stack.push(Bytes32::from_slice(value));
                 // PC
                 ctx.pc += 23;
                 // SUCCESS
                 true
-            },
+            }
             Opcode::PUSH23 => {
                 // GAS
                 ctx.gas += self.fix_gas();
                 // OPERATION
                 let value = &ctx.code[ctx.pc + 1..ctx.pc + 24];
-                ctx.stack.push(value.into());
+                ctx.stack.push(Bytes32::from_slice(value));
                 // PC
                 ctx.pc += 24;
                 // SUCCESS
                 true
-            },
+            }
             Opcode::PUSH24 => {
                 // GAS
                 ctx.gas += self.fix_gas();
                 // OPERATION
                 let value = &ctx.code[ctx.pc + 1..ctx.pc + 25];
-                ctx.stack.push(value.into());
+                ctx.stack.push(Bytes32::from_slice(value));
                 // PC
                 ctx.pc += 25;
                 // SUCCESS
                 true
-            },
+            }
             Opcode::PUSH25 => {
                 // GAS
                 ctx.gas += self.fix_gas();
                 // OPERATION
                 let value = &ctx.code[ctx.pc + 1..ctx.pc + 26];
-                ctx.stack.push(value.into());
+                ctx.stack.push(Bytes32::from_slice(value));
                 // PC
                 ctx.pc += 26;
                 // SUCCESS
                 true
-            },
+            }
             Opcode::PUSH26 => {
                 // GAS
                 ctx.gas += self.fix_gas();
                 // OPERATION
                 let value = &ctx.code[ctx.pc + 1..ctx.pc + 27];
-                ctx.stack.push(value.into());
+                ctx.stack.push(Bytes32::from_slice(value));
                 // PC
                 ctx.pc += 27;
                 // SUCCESS
                 true
-            },
+            }
             Opcode::PUSH27 => {
                 // GAS
                 ctx.gas += self.fix_gas();
                 // OPERATION
                 let value = &ctx.code[ctx.pc + 1..ctx.pc + 28];
-                ctx.stack.push(value.into());
+                ctx.stack.push(Bytes32::from_slice(value));
                 // PC
                 ctx.pc += 28;
                 // SUCCESS
                 true
-            },
+            }
             Opcode::PUSH28 => {
                 // GAS
                 ctx.gas += self.fix_gas();
                 // OPERATION
                 let value = &ctx.code[ctx.pc + 1..ctx.pc + 29];
-                ctx.stack.push(value.into());
+                ctx.stack.push(Bytes32::from_slice(value));
                 // PC
                 ctx.pc += 29;
                 // SUCCESS
                 true
-            },
+            }
             Opcode::PUSH29 => {
                 // GAS
                 ctx.gas += self.fix_gas();
                 // OPERATION
                 let value = &ctx.code[ctx.pc + 1..ctx.pc + 30];
-                ctx.stack.push(value.into());
+                ctx.stack.push(Bytes32::from_slice(value));
                 // PC
                 ctx.pc += 30;
                 // SUCCESS
                 true
-            },
+            }
             Opcode::PUSH30 => {
                 // GAS
                 ctx.gas += self.fix_gas();
                 // OPERATION
                 let value = &ctx.code[ctx.pc + 1..ctx.pc + 31];
-                ctx.stack.push(value.into());
+                ctx.stack.push(Bytes32::from_slice(value));
                 // PC
                 ctx.pc += 31;
                 // SUCCESS
                 true
-            },
+            }
             Opcode::PUSH31 => {
                 // GAS
                 ctx.gas += self.fix_gas();
                 // OPERATION
                 let value = &ctx.code[ctx.pc + 1..ctx.pc + 32];
-                ctx.stack.push(value.into());
+                ctx.stack.push(Bytes32::from_slice(value));
                 // PC
                 ctx.pc += 32;
                 // SUCCESS
                 true
-            },
+            }
             Opcode::PUSH32 => {
                 // GAS
                 ctx.gas += self.fix_gas();
                 // OPERATION
                 let value = &ctx.code[ctx.pc + 1..ctx.pc + 33];
-                ctx.stack.push(value.into());
+                ctx.stack.push(Bytes32::from_slice(value));
                 // PC
                 ctx.pc += 33;
                 // SUCCESS
                 true
-            },
+            }
             Opcode::DUP1 => {
                 // GAS
                 ctx.gas += self.fix_gas();
@@ -1443,7 +1565,7 @@ impl Opcode {
                 ctx.pc += 1;
                 // SUCCESS
                 true
-            },
+            }
             Opcode::DUP2 => {
                 // GAS
                 ctx.gas += self.fix_gas();
@@ -1457,7 +1579,7 @@ impl Opcode {
                 ctx.pc += 1;
                 // SUCCESS
                 true
-            },
+            }
             Opcode::DUP3 => {
                 // GAS
                 ctx.gas += self.fix_gas();
@@ -1471,7 +1593,7 @@ impl Opcode {
                 ctx.pc += 1;
                 // SUCCESS
                 true
-            },
+            }
             Opcode::DUP4 => {
                 // GAS
                 ctx.gas += self.fix_gas();
@@ -1485,7 +1607,7 @@ impl Opcode {
                 ctx.pc += 1;
                 // SUCCESS
                 true
-            },
+            }
             Opcode::DUP5 => {
                 // GAS
                 ctx.gas += self.fix_gas();
@@ -1499,7 +1621,7 @@ impl Opcode {
                 ctx.pc += 1;
                 // SUCCESS
                 true
-            },
+            }
             Opcode::DUP6 => {
                 // GAS
                 ctx.gas += self.fix_gas();
@@ -1513,7 +1635,7 @@ impl Opcode {
                 ctx.pc += 1;
                 // SUCCESS
                 true
-            },
+            }
             Opcode::DUP7 => {
                 // GAS
                 ctx.gas += self.fix_gas();
@@ -1527,7 +1649,7 @@ impl Opcode {
                 ctx.pc += 1;
                 // SUCCESS
                 true
-            },
+            }
             Opcode::DUP8 => {
                 // GAS
                 ctx.gas += self.fix_gas();
@@ -1541,7 +1663,7 @@ impl Opcode {
                 ctx.pc += 1;
                 // SUCCESS
                 true
-            },
+            }
             Opcode::DUP9 => {
                 // GAS
                 ctx.gas += self.fix_gas();
@@ -1555,7 +1677,7 @@ impl Opcode {
                 ctx.pc += 1;
                 // SUCCESS
                 true
-            },
+            }
             Opcode::DUP10 => {
                 // GAS
                 ctx.gas += self.fix_gas();
@@ -1569,7 +1691,7 @@ impl Opcode {
                 ctx.pc += 1;
                 // SUCCESS
                 true
-            },
+            }
             Opcode::DUP11 => {
                 // GAS
                 ctx.gas += self.fix_gas();
@@ -1583,7 +1705,7 @@ impl Opcode {
                 ctx.pc += 1;
                 // SUCCESS
                 true
-            },
+            }
             Opcode::DUP12 => {
                 // GAS
                 ctx.gas += self.fix_gas();
@@ -1597,7 +1719,7 @@ impl Opcode {
                 ctx.pc += 1;
                 // SUCCESS
                 true
-            },
+            }
             Opcode::DUP13 => {
                 // GAS
                 ctx.gas += self.fix_gas();
@@ -1611,7 +1733,7 @@ impl Opcode {
                 ctx.pc += 1;
                 // SUCCESS
                 true
-            },
+            }
             Opcode::DUP14 => {
                 // GAS
                 ctx.gas += self.fix_gas();
@@ -1625,7 +1747,7 @@ impl Opcode {
                 ctx.pc += 1;
                 // SUCCESS
                 true
-            },
+            }
             Opcode::DUP15 => {
                 // GAS
                 ctx.gas += self.fix_gas();
@@ -1639,7 +1761,7 @@ impl Opcode {
                 ctx.pc += 1;
                 // SUCCESS
                 true
-            },
+            }
             Opcode::DUP16 => {
                 // GAS
                 ctx.gas += self.fix_gas();
@@ -1653,7 +1775,7 @@ impl Opcode {
                 ctx.pc += 1;
                 // SUCCESS
                 true
-            },
+            }
             Opcode::SWAP1 => {
                 // GAS
                 ctx.gas += self.fix_gas();
@@ -1663,7 +1785,7 @@ impl Opcode {
                 ctx.pc += 1;
                 // SUCCESS
                 true
-            },
+            }
             Opcode::SWAP2 => {
                 // GAS
                 ctx.gas += self.fix_gas();
@@ -1673,7 +1795,7 @@ impl Opcode {
                 ctx.pc += 1;
                 // SUCCESS
                 true
-            },
+            }
             Opcode::SWAP3 => {
                 // GAS
                 ctx.gas += self.fix_gas();
@@ -1683,7 +1805,7 @@ impl Opcode {
                 ctx.pc += 1;
                 // SUCCESS
                 true
-            },
+            }
             Opcode::SWAP4 => {
                 // GAS
                 ctx.gas += self.fix_gas();
@@ -1693,7 +1815,7 @@ impl Opcode {
                 ctx.pc += 1;
                 // SUCCESS
                 true
-            },
+            }
             Opcode::SWAP5 => {
                 // GAS
                 ctx.gas += self.fix_gas();
@@ -1703,7 +1825,7 @@ impl Opcode {
                 ctx.pc += 1;
                 // SUCCESS
                 true
-            },
+            }
             Opcode::SWAP6 => {
                 // GAS
                 ctx.gas += self.fix_gas();
@@ -1713,7 +1835,7 @@ impl Opcode {
                 ctx.pc += 1;
                 // SUCCESS
                 true
-            },
+            }
             Opcode::SWAP7 => {
                 // GAS
                 ctx.gas += self.fix_gas();
@@ -1723,7 +1845,7 @@ impl Opcode {
                 ctx.pc += 1;
                 // SUCCESS
                 true
-            },
+            }
             Opcode::SWAP8 => {
                 // GAS
                 ctx.gas += self.fix_gas();
@@ -1733,7 +1855,7 @@ impl Opcode {
                 ctx.pc += 1;
                 // SUCCESS
                 true
-            },
+            }
             Opcode::SWAP9 => {
                 // GAS
                 ctx.gas += self.fix_gas();
@@ -1743,7 +1865,7 @@ impl Opcode {
                 ctx.pc += 1;
                 // SUCCESS
                 true
-            },
+            }
             Opcode::SWAP10 => {
                 // GAS
                 ctx.gas += self.fix_gas();
@@ -1753,7 +1875,7 @@ impl Opcode {
                 ctx.pc += 1;
                 // SUCCESS
                 true
-            },
+            }
             Opcode::SWAP11 => {
                 // GAS
                 ctx.gas += self.fix_gas();
@@ -1763,7 +1885,7 @@ impl Opcode {
                 ctx.pc += 1;
                 // SUCCESS
                 true
-            },
+            }
             Opcode::SWAP12 => {
                 // GAS
                 ctx.gas += self.fix_gas();
@@ -1773,7 +1895,7 @@ impl Opcode {
                 ctx.pc += 1;
                 // SUCCESS
                 true
-            },
+            }
             Opcode::SWAP13 => {
                 // GAS
                 ctx.gas += self.fix_gas();
@@ -1783,7 +1905,7 @@ impl Opcode {
                 ctx.pc += 1;
                 // SUCCESS
                 true
-            },
+            }
             Opcode::SWAP14 => {
                 // GAS
                 ctx.gas += self.fix_gas();
@@ -1793,7 +1915,7 @@ impl Opcode {
                 ctx.pc += 1;
                 // SUCCESS
                 true
-            },
+            }
             Opcode::SWAP15 => {
                 // GAS
                 ctx.gas += self.fix_gas();
@@ -1803,7 +1925,7 @@ impl Opcode {
                 ctx.pc += 1;
                 // SUCCESS
                 true
-            },
+            }
             Opcode::SWAP16 => {
                 // GAS
                 ctx.gas += self.fix_gas();
@@ -1813,17 +1935,16 @@ impl Opcode {
                 ctx.pc += 1;
                 // SUCCESS
                 true
-            },
+            }
             Opcode::INVALID => {
                 // PC
                 ctx.pc += 1;
                 // SUCCESS
                 false
-            },
+            }
         }
     }
 }
-
 
 impl Opcode {
     pub fn fix_gas(&self) -> usize {
@@ -1835,26 +1956,6 @@ impl Opcode {
             Opcode::JUMPDEST => 1,
             // Gas: Base
             Opcode::ADDRESS => 2,
-            // TODO: start
-            Opcode::ORIGIN => 2,
-            Opcode::CALLER => 2,
-            Opcode::GASPRICE => 2,
-            Opcode::BASEFEE => 2,
-            Opcode::CALLVALUE => 2,
-            Opcode::CALLDATALOAD => 2,
-            Opcode::CALLDATASIZE => 2,
-            Opcode::CALLDATACOPY => 2,
-            Opcode::CODESIZE => 2,
-            Opcode::CODECOPY => 2,
-            Opcode::BLOCKHASH => 2,
-            Opcode::COINBASE => 2,
-            Opcode::TIMESTAMP => 2,
-            Opcode::NUMBER => 2,
-            Opcode::PEVRANDAO => 2,
-            Opcode::GASLIMIT => 2,
-            Opcode::CHAINID => 2,
-            Opcode::SELFBALANCE => 2,
-            // TODO: end
             Opcode::POP => 2,
             Opcode::PC => 2,
             Opcode::MSIZE => 2,
@@ -1962,32 +2063,53 @@ impl Opcode {
             // Gas: Extaccount
             // Gas: Keccak
             Opcode::SHA3 => 30,
+            // TODO:
+            _ => 0,
         }
     }
 }
 
-fn validate_jumpdest(code: &Vec<u8>, pc_new: usize) -> bool {
+fn validate_jumpdest(code: &Bytes, pc_new: usize) -> bool {
     // Ensure informed jump destination
     match code[pc_new].try_into().unwrap() {
         Opcode::JUMPDEST => {
             // Ensure valid jump destination
-            match code[pc_new - 1].try_into().unwrap() {
-                Opcode::PUSH1  | Opcode::PUSH2  | Opcode::PUSH3  | Opcode::PUSH4  |
-                Opcode::PUSH5  | Opcode::PUSH6  | Opcode::PUSH7  | Opcode::PUSH8  |
-                Opcode::PUSH9  | Opcode::PUSH10 | Opcode::PUSH11 | Opcode::PUSH12 |
-                Opcode::PUSH13 | Opcode::PUSH14 | Opcode::PUSH15 | Opcode::PUSH16 |
-                Opcode::PUSH17 | Opcode::PUSH18 | Opcode::PUSH19 | Opcode::PUSH20 |
-                Opcode::PUSH21 | Opcode::PUSH22 | Opcode::PUSH23 | Opcode::PUSH24 |
-                Opcode::PUSH25 | Opcode::PUSH26 | Opcode::PUSH27 | Opcode::PUSH28 |
-                Opcode::PUSH29 | Opcode::PUSH30 | Opcode::PUSH31 | Opcode::PUSH32 => {
-                    false
-                },
-                _ => true,
-            }
-        },
+            !matches!(
+                code[pc_new - 1].try_into().unwrap(),
+                Opcode::PUSH1
+                    | Opcode::PUSH2
+                    | Opcode::PUSH3
+                    | Opcode::PUSH4
+                    | Opcode::PUSH5
+                    | Opcode::PUSH6
+                    | Opcode::PUSH7
+                    | Opcode::PUSH8
+                    | Opcode::PUSH9
+                    | Opcode::PUSH10
+                    | Opcode::PUSH11
+                    | Opcode::PUSH12
+                    | Opcode::PUSH13
+                    | Opcode::PUSH14
+                    | Opcode::PUSH15
+                    | Opcode::PUSH16
+                    | Opcode::PUSH17
+                    | Opcode::PUSH18
+                    | Opcode::PUSH19
+                    | Opcode::PUSH20
+                    | Opcode::PUSH21
+                    | Opcode::PUSH22
+                    | Opcode::PUSH23
+                    | Opcode::PUSH24
+                    | Opcode::PUSH25
+                    | Opcode::PUSH26
+                    | Opcode::PUSH27
+                    | Opcode::PUSH28
+                    | Opcode::PUSH29
+                    | Opcode::PUSH30
+                    | Opcode::PUSH31
+                    | Opcode::PUSH32
+            )
+        }
         _ => false,
     }
 }
-
-
-                

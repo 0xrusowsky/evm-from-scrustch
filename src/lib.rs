@@ -1,7 +1,7 @@
-use ethereum_types::U256;
 use serde::Deserialize;
 
-pub mod utils;
+pub mod types;
+use crate::types::{Bytes, Bytes32};
 pub mod stack;
 use crate::stack::Stack;
 pub mod memory;
@@ -12,8 +12,10 @@ pub mod call;
 pub use crate::call::Call;
 pub mod block;
 pub use crate::block::Block;
+pub mod state;
+pub use crate::state::State;
 
-#[derive(Debug, Deserialize, Clone)]
+#[derive(Debug, Deserialize, Default, Clone)]
 pub struct Code {
     #[serde(default)]
     pub asm: Option<String>,
@@ -22,14 +24,15 @@ pub struct Code {
 }
 
 pub struct EvmResult {
-    pub stack: Vec<U256>,
+    pub stack: Vec<Bytes32>,
     pub success: bool,
 }
 
 pub struct ExecutionContext {
     call: Call,
     block: Block,
-    code: Vec<u8>,
+    state: State,
+    code: Bytes,
     stack: Stack,
     memory: Memory,
     pc: usize,
@@ -38,10 +41,11 @@ pub struct ExecutionContext {
 }
 
 impl ExecutionContext {
-    pub fn new(call: Call, block: Block, code: Vec<u8>) -> Self {
+    pub fn new(call: Call, block: Block, state: State, code: Bytes) -> Self {
         Self {
             call,
             block,
+            state,
             code,
             stack: Stack::new(),
             memory: Memory::new(),
@@ -55,8 +59,8 @@ impl ExecutionContext {
         self.code.len()
     }
 
-    pub fn code(&self) -> &[u8] {
-        &self.code
+    pub fn code(&self) -> Bytes {
+        self.code.clone()
     }
 
     pub fn run(&mut self) -> EvmResult {
@@ -66,11 +70,11 @@ impl ExecutionContext {
             if !success || self.stopped || self.pc >= self.code.len() {
                 break;
             }
-        
+
             // Process the next opcode
             let opcode: Opcode = self.code[self.pc].try_into().unwrap();
             let opcode_success = opcode.execute(self);
-        
+
             // Update control variables
             success = opcode_success;
         }
