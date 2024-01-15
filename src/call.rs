@@ -2,6 +2,7 @@ use serde::Deserialize;
 use ethereum_types::U256;
 
 use crate::utils::{
+    Bytes,
     Address,
     hex_string_to_bytes,
     hex_string_to_address,
@@ -23,7 +24,7 @@ pub struct Call {
     #[serde(default)]
     code_target: Address,
     #[serde(default, deserialize_with = "hex_string_to_bytes")]
-    data: Vec<u8>,
+    data: Bytes,
     #[serde(default)]
     value: U256,
     #[serde(default)]
@@ -38,7 +39,7 @@ impl Call {
         gas_price: U256,
         available_gas: U256,
         code_target: Address,
-        data: Vec<u8>,
+        data: Bytes,
         value: U256,
         view: bool,
     ) -> Self {
@@ -80,8 +81,8 @@ impl Call {
         self.code_target
     }
 
-    pub fn data(&self) -> &[u8] {
-        &self.data
+    pub fn data(&self) -> Bytes {
+        self.data.clone()
     }
 
     pub fn data_size(&self) -> usize {

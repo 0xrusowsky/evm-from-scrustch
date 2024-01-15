@@ -5,6 +5,8 @@ use serde::Deserialize;
 
 use super::Code;
 use crate::utils::{
+    Bytes,
+    Bytes32,
     Address,
     hex_string_to_bytes,
     hex_string_to_address,
@@ -40,12 +42,12 @@ impl State {
         }
     }
 
-    pub fn code(&self, address: &Address) -> Vec<u8> {
+    pub fn code(&self, address: &Address) -> Bytes {
         match self.get(address) {
             Some(account_state) => {
                 account_state.code()
             },
-            None => Vec::new(),
+            None => Bytes::new(),
         }
     }
 
@@ -53,12 +55,12 @@ impl State {
         self.code(address).len()
     }
 
-    pub fn code_hash(&self, address: &Address) -> Vec<u8> {
+    pub fn code_hash(&self, address: &Address) -> Bytes32 {
         let code = self.code(address);
         if code.len() == 0 {
-            vec![0]
+            Bytes32::from_vec(vec![0])
         } else {
-            Keccak256::digest(self.code(address)).to_vec()
+            Bytes32::from_vec(Keccak256::digest(self.code(address).as_slice()).to_vec())
         }
     }
 }
@@ -72,11 +74,11 @@ pub struct AccountState {
     #[serde(default)]
     nonce: U256,
     #[serde(default, deserialize_with = "hex_string_to_bytes")]
-    code_bytes: Vec<u8>,
+    code_bytes: Bytes,
     #[serde(default, rename = "code")]
     code_test: Code,
     #[serde(default, rename = "storageRoot", deserialize_with = "hex_string_to_bytes")]
-    storage_root: Vec<u8>,
+    storage_root: Bytes,
 }
 
 impl AccountState {
@@ -85,9 +87,9 @@ impl AccountState {
             address,
             balance: U256::zero(),
             nonce: U256::zero(),
-            code_bytes: Vec::new(),
+            code_bytes: Bytes::new(),
             code_test: Code::default(),
-            storage_root: Vec::new(),
+            storage_root: Bytes::new(),
         }
     }
 
@@ -103,15 +105,15 @@ impl AccountState {
         self.nonce
     }
 
-    pub fn code(&self) -> Vec<u8> {
+    pub fn code(&self) -> Bytes {
         if self.code_bytes.len() > 0 {
             self.code_bytes.clone()
         } else {
-            hex::decode(&self.code_test.bin).unwrap()
+            Bytes::from_vec(hex::decode(&self.code_test.bin).unwrap())
         }
     }
 
-    pub fn storage_root(&self) -> &Vec<u8> {
+    pub fn storage_root(&self) -> &Bytes {
         &self.storage_root
     }
 }

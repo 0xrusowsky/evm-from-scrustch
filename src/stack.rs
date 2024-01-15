@@ -1,8 +1,9 @@
 use ethereum_types::U256;
+use crate::utils::{Bytes32, Address};
 
 #[derive(Debug)]
 pub struct Stack {
-    items: Vec<U256>,
+    items: Vec<Bytes32>,
     max_depth: usize,
 }
 
@@ -16,16 +17,26 @@ impl Stack {
 
     // Stack Operations
 
-    pub fn push(&mut self, value: U256) {
-        println!("Pushing value: {:#X}", value);
+    pub fn push(&mut self, value: Bytes32) {
         if self.items.len() == self.max_depth {
             panic!("Stack overflow");
         }
-
         self.items.push(value);
     }
 
-    pub fn pop(&mut self) -> U256 {
+    pub fn push_u256(&mut self, number: U256) {
+        self.push(Bytes32::from_u256(number));
+    }
+
+    pub fn push_address(&mut self, address: Address) {
+        self.push(Bytes32::from_address(address));
+    }
+
+    pub fn push_usize(&mut self, size: usize) {
+        self.push_u256(size.into());
+    }
+
+    pub fn pop(&mut self) -> Bytes32 {
         if self.items.is_empty() {
             panic!("Stack underflow");
         }
@@ -46,19 +57,19 @@ impl Stack {
 
     // Stack Getters
 
-    pub fn items(&self) -> &Vec<U256> {
+    pub fn items(&self) -> &Vec<Bytes32> {
         &self.items
     }
 
-    pub fn get_item(&self, depth: usize) -> Option<U256> {
+    pub fn get_item(&self, depth: usize) -> Option<Bytes32> {
         if depth >= self.items.len() {
             None
         } else {
-            Some(self.items[depth])
+            Some(self.items[depth].clone())
         }
     }
 
-    pub fn deref_items(&self) -> Vec<U256> {
+    pub fn deref_items(&self) -> Vec<Bytes32> {
         let mut items = self.items.clone();
         items.reverse();
         items

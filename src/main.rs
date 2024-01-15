@@ -13,6 +13,7 @@
  * to Rust, implement EVM in another programming language first.
  */
 use ethereum_types::U256;
+use evm::utils::{Bytes, Bytes32};
 use evm::{ExecutionContext, Code, Call, Block, State};
 use serde::Deserialize;
 
@@ -71,15 +72,15 @@ fn main() {
     for (index, test) in data.iter_mut().enumerate() {
         println!("Test {} of {}: {}", index + 1, total, test.name);
 
-        let code: Vec<u8> = hex::decode(&test.code.bin).unwrap();
+        let code = Bytes::from_vec(hex::decode(&test.code.bin).unwrap());
         let mut evm = ExecutionContext::new(test.call(), test.block(), test.state(), code);
         let result = evm.run();
 
-        let expected_stack: Vec<U256> = test
+        let expected_stack: Vec<Bytes32> = test
             .expect
             .stack
             .iter()
-            .map(|v| U256::from_str_radix(v, 16).unwrap())
+            .map(|v| Bytes32::from_u256(U256::from_str_radix(v, 16).unwrap()))
             .collect();
 
         let matching = result.success == test.expect.success && result.stack == expected_stack;
