@@ -1,7 +1,7 @@
 use ethereum_types::{U64, U256, H256};
 use serde::Deserialize;
 
-use crate::utils::{
+use crate::types::{
     Address,
     // hex_string_to_u64,
     hex_string_to_address_option,

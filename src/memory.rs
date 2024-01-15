@@ -1,4 +1,4 @@
-use crate::utils::Bytes;
+use crate::types::Bytes;
 
 #[derive(Debug)]
 pub struct Memory(Bytes);

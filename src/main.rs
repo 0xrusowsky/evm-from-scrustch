@@ -13,7 +13,7 @@
  * to Rust, implement EVM in another programming language first.
  */
 use ethereum_types::U256;
-use evm::utils::{Bytes, Bytes32};
+use evm::types::{Bytes, Bytes32};
 use evm::{ExecutionContext, Code, Call, Block, State};
 use serde::Deserialize;
 

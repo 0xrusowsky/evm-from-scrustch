@@ -3,6 +3,12 @@ use std::ops::{Index, IndexMut, Range};
 use serde::Deserialize;
 use serde::de::{self, Deserializer};
 use ethereum_types::{U64, H160, U256, U512};
+use std::ops::{BitAnd, BitOr, BitXor, Not};
+
+// --- TYPE: BYTES -----------------------------------------------------------
+//  A wrapper around Vec<u8> that represents an arbitrary number of bytes.
+//  Implements bitwise operations and conversion from/to other types that are
+//  used in EVM.
 
 #[derive(Debug, Default, Clone, Deserialize, PartialEq, Eq, Hash)]
 pub struct Bytes(Vec<u8>);
@@ -40,6 +46,18 @@ impl Bytes {
     pub fn resize(&mut self, new_size: usize, value: u8) {
         self.0.resize(new_size, value);
     }
+
+    pub fn zero() -> Bytes {
+        Bytes::from_byte(0)
+    }
+
+    pub fn one() -> Bytes {
+        Bytes::from_byte(1)
+    }
+
+    pub fn is_zero(&self) -> bool {
+        self.0.iter().all(|&x| x == 0)
+    }
     
     // Conversion from/to Bytes32
     pub fn as_bytes32(&self) -> Bytes32 {
@@ -59,44 +77,10 @@ impl Bytes {
     }
 }
 
-// Immutable indexing
-impl Index<usize> for Bytes {
-    type Output = u8;
-
-    fn index(&self, index: usize) -> &Self::Output {
-        &self.0[index]
-    }
-}
-
-impl Index<Range<usize>> for Bytes {
-    type Output = [u8];
-
-    fn index(&self, index: Range<usize>) -> &Self::Output {
-        &self.0[index]
-    }
-}
-
-// Mutable indexing
-impl IndexMut<usize> for Bytes {
-    fn index_mut(&mut self, index: usize) -> &mut Self::Output {
-        &mut self.0[index]
-    }
-}
-
-impl IndexMut<Range<usize>> for Bytes {
-    fn index_mut(&mut self, index: Range<usize>) -> &mut Self::Output {
-        &mut self.0[index]
-    }
-}
-
-impl fmt::UpperHex for Bytes {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        for byte in &self.0 {
-            write!(f, "{:02X}", byte)?;
-        }
-        Ok(())
-    }
-}
+// -- TYPE: BYTES32 -----------------------------------------------------------
+//  A wrapper around Vec<u8> that represents an 32 bytes.
+//  Implements bitwise operations and conversion from/to other types that are
+//  used in EVM.
 
 #[derive(Debug, Default, Clone, Deserialize, PartialEq, Eq, Hash)]
 pub struct Bytes32(Vec<u8>);
@@ -118,7 +102,6 @@ impl Bytes32 {
         if index < 32 {self.0[index]} else { 0 }
     }
 
-    // Conversion from/to Vec<u8>
     pub fn from_vec(vec: Vec<u8>) -> Bytes32 {
         let len = vec.len();
         let mut bytes = [0u8; 32];
@@ -136,6 +119,21 @@ impl Bytes32 {
 
     pub fn as_slice(&self) -> &[u8] {
         &self.0
+    }
+
+    pub fn zero() -> Bytes32 {
+        let bytes = [0u8; 32];
+        Bytes32::from_slice(&bytes)
+    }
+
+    pub fn one() -> Bytes32 {
+        let mut bytes = [0u8; 32];
+        bytes[31] = 1;
+        Bytes32::from_slice(&bytes)
+    }
+
+    pub fn is_zero(&self) -> bool {
+        self.0.iter().all(|&x| x == 0)
     }
 
     // Conversion from/to Bytes
@@ -226,45 +224,6 @@ impl Bytes32 {
     }
 }
 
-// Immutable indexing
-impl Index<usize> for Bytes32 {
-    type Output = u8;
-
-    fn index(&self, index: usize) -> &Self::Output {
-        &self.0[index]
-    }
-}
-
-impl Index<Range<usize>> for Bytes32 {
-    type Output = [u8];
-
-    fn index(&self, index: Range<usize>) -> &Self::Output {
-        &self.0[index]
-    }
-}
-
-// Mutable indexing
-impl IndexMut<usize> for Bytes32 {
-    fn index_mut(&mut self, index: usize) -> &mut Self::Output {
-        &mut self.0[index]
-    }
-}
-
-impl IndexMut<Range<usize>> for Bytes32 {
-    fn index_mut(&mut self, index: Range<usize>) -> &mut Self::Output {
-        &mut self.0[index]
-    }
-}
-
-impl fmt::UpperHex for Bytes32 {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        for byte in &self.0 {
-            write!(f, "{:02X}", byte)?;
-        }
-        Ok(())
-    }
-}
-
 #[derive(Debug, Default, Clone, Copy, Deserialize, PartialEq, Eq, Hash)]
 pub struct Address(H160);
 
@@ -289,6 +248,191 @@ impl Address {
         Bytes32::from_address(*self)
     }
 }
+
+
+// -- COMMON TRAITS -----------------------------------------------------------
+
+// Immutable indexing
+impl Index<usize> for Bytes {
+    type Output = u8;
+
+    fn index(&self, index: usize) -> &Self::Output {
+        &self.0[index]
+    }
+}
+impl Index<usize> for Bytes32 {
+    type Output = u8;
+
+    fn index(&self, index: usize) -> &Self::Output {
+        &self.0[index]
+    }
+}
+
+// Immutable indexing of a range
+impl Index<Range<usize>> for Bytes {
+    type Output = [u8];
+
+    fn index(&self, index: Range<usize>) -> &Self::Output {
+        &self.0[index]
+    }
+}
+impl Index<Range<usize>> for Bytes32 {
+    type Output = [u8];
+
+    fn index(&self, index: Range<usize>) -> &Self::Output {
+        &self.0[index]
+    }
+}
+
+// Mutable indexing
+impl IndexMut<usize> for Bytes {
+    fn index_mut(&mut self, index: usize) -> &mut Self::Output {
+        &mut self.0[index]
+    }
+}
+impl IndexMut<usize> for Bytes32 {
+    fn index_mut(&mut self, index: usize) -> &mut Self::Output {
+        &mut self.0[index]
+    }
+}
+
+// Mutable indexing of a range
+impl IndexMut<Range<usize>> for Bytes {
+    fn index_mut(&mut self, index: Range<usize>) -> &mut Self::Output {
+        &mut self.0[index]
+    }
+}
+impl IndexMut<Range<usize>> for Bytes32 {
+    fn index_mut(&mut self, index: Range<usize>) -> &mut Self::Output {
+        &mut self.0[index]
+    }
+}
+
+// Formatting as hex
+impl fmt::UpperHex for Bytes {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        for byte in &self.0 {
+            write!(f, "{:02X}", byte)?;
+        }
+        Ok(())
+    }
+}
+impl fmt::UpperHex for Bytes32 {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        for byte in &self.0 {
+            write!(f, "{:02X}", byte)?;
+        }
+        Ok(())
+    }
+}
+impl fmt::UpperHex for Address {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        for byte in &self.0.0 {
+            write!(f, "{:02X}", byte)?;
+        }
+        Ok(())
+    }
+}
+
+// Bitwise operations (generic implementation)
+fn bitnot(a: Vec<u8>) -> Vec<u8> {
+    a.iter().map(|&x| !x).collect()
+}
+
+fn bitwise_operation(
+    a: Vec<u8>,
+    b: Vec<u8>,
+    operator: fn(x:u8, y:u8) -> u8
+) -> Vec<u8> {
+    let len = std::cmp::max(a.len(), b.len());
+    let mut result = Vec::with_capacity(len);
+    for i in 0..len {
+        let x = *a.get(i).unwrap_or(&0);
+        let y = *b.get(i).unwrap_or(&0);
+        result.push(operator(x, y));
+    }
+    result
+}
+
+fn bitand(a: Vec<u8>, b: Vec<u8>) -> Vec<u8> {
+    bitwise_operation(a, b, |x, y| x & y)
+}
+
+fn bitor(a: Vec<u8>, b: Vec<u8>) -> Vec<u8> {
+    bitwise_operation(a, b, |x, y| x | y)
+}
+
+fn bitxor(a: Vec<u8>, b: Vec<u8>) -> Vec<u8> {
+    bitwise_operation(a, b, |x, y| x ^ y)
+}
+
+// Bitwise operations (trait implementations)
+impl BitAnd for Bytes {
+    type Output = Self;
+
+    fn bitand(self, rhs: Self) -> Self::Output {
+        Bytes(bitand(self.0, rhs.0))
+    }
+}
+
+impl BitAnd for Bytes32 {
+    type Output = Self;
+
+    fn bitand(self, rhs: Self) -> Self::Output {
+        Bytes32(bitand(self.0, rhs.0))
+    }
+}
+
+impl BitOr for Bytes {
+    type Output = Self;
+
+    fn bitor(self, rhs: Self) -> Self::Output {
+        Bytes(bitor(self.0, rhs.0))
+    }
+}
+
+impl BitOr for Bytes32 {
+    type Output = Self;
+
+    fn bitor(self, rhs: Self) -> Self::Output {
+        Bytes32(bitor(self.0, rhs.0))
+    }
+}
+
+impl BitXor for Bytes {
+    type Output = Self;
+
+    fn bitxor(self, rhs: Self) -> Self::Output {
+        Bytes(bitxor(self.0, rhs.0))
+    }
+}
+
+impl BitXor for Bytes32 {
+    type Output = Self;
+
+    fn bitxor(self, rhs: Self) -> Self::Output {
+        Bytes32(bitxor(self.0, rhs.0))
+    }
+}
+
+impl Not for Bytes {
+    type Output = Self;
+
+    fn not(self) -> Self::Output {
+        Bytes(bitnot(self.0))
+    }
+}
+
+impl Not for Bytes32 {
+    type Output = Self;
+
+    fn not(self) -> Self::Output {
+        Bytes32(bitnot(self.0))
+    }
+}
+
+
+// -- UTILS -------------------------------------------------------------------
 
 // Custom deserializers to convert hex strings from EVM Test
 

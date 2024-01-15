@@ -1,5 +1,5 @@
 use ethereum_types::U256;
-use crate::utils::{Bytes32, Address};
+use crate::types::{Bytes32, Address};
 
 #[derive(Debug)]
 pub struct Stack {

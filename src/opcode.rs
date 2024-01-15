@@ -1,9 +1,9 @@
 use std::convert::TryFrom;
 use sha3::{Digest, Keccak256};
-use ethereum_types::{U256, U512};
+use ethereum_types::U256;
 use std::ops::{BitAnd, BitOr, BitXor, Not, Shl, Shr};
 
-use crate::utils::{
+use crate::types::{
     Bytes,
     Bytes32,
 };
@@ -542,13 +542,12 @@ impl Opcode {
             },
             Opcode::EQ => {
                 // STACK
-                let a = ctx.stack.pop().to_u256();
-                let b = ctx.stack.pop().to_u256();
+                let a = ctx.stack.pop();
+                let b = ctx.stack.pop();
                 // GAS
                 ctx.gas += self.fix_gas();
                 // OPERATION
-                let result = if a == b { U256::one() } else { U256::zero() };
-                ctx.stack.push_u256(result);
+                ctx.stack.push(if a == b { Bytes32::one() } else { Bytes32::zero() });
                 // PC
                 ctx.pc += 1;
                 // SUCCESS
@@ -556,9 +555,8 @@ impl Opcode {
             },
             Opcode::ISZERO => {
                 // STACK
-                let a = ctx.stack.pop().to_u256();
-                let result = if a.is_zero() { U256::one() } else { U256::zero() };
-                ctx.stack.push_u256(result);
+                let a = ctx.stack.pop();
+                ctx.stack.push(if a.is_zero() { Bytes32::one() } else { Bytes32::zero() });
                 // PC
                 ctx.pc += 1;
                 // SUCCESS
@@ -566,13 +564,13 @@ impl Opcode {
             },
             Opcode::AND => {
                 // STACK
-                let a = ctx.stack.pop().to_u256();
-                let b = ctx.stack.pop().to_u256();
+                let a = ctx.stack.pop();
+                let b = ctx.stack.pop();
                 // GAS
                 ctx.gas += self.fix_gas();
                 // OPERATION
                 let result = a.bitand(b);
-                ctx.stack.push_u256(result);
+                ctx.stack.push(result);
                 // PC
                 ctx.pc += 1;
                 // SUCCESS
@@ -580,13 +578,13 @@ impl Opcode {
             },
             Opcode::OR => {
                 // STACK
-                let a = ctx.stack.pop().to_u256();
-                let b = ctx.stack.pop().to_u256();
+                let a = ctx.stack.pop();
+                let b = ctx.stack.pop();
                 // GAS
                 ctx.gas += self.fix_gas();
                 // OPERATION
                 let result = a.bitor(b);
-                ctx.stack.push_u256(result);
+                ctx.stack.push(result);
                 // PC
                 ctx.pc += 1;
                 // SUCCESS
@@ -594,13 +592,13 @@ impl Opcode {
             },
             Opcode::XOR => {
                 // STACK
-                let a = ctx.stack.pop().to_u256();
-                let b = ctx.stack.pop().to_u256();
+                let a = ctx.stack.pop();
+                let b = ctx.stack.pop();
                 // GAS
                 ctx.gas += self.fix_gas();
                 // OPERATION
                 let result = a.bitxor(b);
-                ctx.stack.push_u256(result);
+                ctx.stack.push(result);
                 // PC
                 ctx.pc += 1;
                 // SUCCESS
@@ -608,12 +606,12 @@ impl Opcode {
             },
             Opcode::NOT => {
                 // STACK
-                let a = ctx.stack.pop().to_u256();
+                let a = ctx.stack.pop();
                 // GAS
                 ctx.gas += self.fix_gas();
                 // OPERATION
                 let result = a.not();
-                ctx.stack.push_u256(result);
+                ctx.stack.push(result);
                 // PC
                 ctx.pc += 1;
                 // SUCCESS

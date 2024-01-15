@@ -1,8 +1,7 @@
-use ethereum_types::U256;
 use serde::Deserialize;
 
-pub mod utils;
-use crate::utils::{Bytes, Bytes32};
+pub mod types;
+use crate::types::{Bytes, Bytes32};
 pub mod stack;
 use crate::stack::Stack;
 pub mod memory;
