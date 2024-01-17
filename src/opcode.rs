@@ -8,6 +8,7 @@ use crate::call::Call;
 
 use super::ExecutionContext;
 
+#[derive(Debug)]
 pub enum Opcode {
     STOP,
     ADD,
@@ -141,6 +142,7 @@ pub enum Opcode {
     CALLCODE,
     RETURN,
     DELEGATECALL,
+    STATICCALL,
     REVERT,
     INVALID,
 }
@@ -282,6 +284,7 @@ impl TryFrom<u8> for Opcode {
             0xF2 => Ok(Opcode::CALLCODE),
             0xF3 => Ok(Opcode::RETURN),
             0xF4 => Ok(Opcode::DELEGATECALL),
+            0xFA => Ok(Opcode::STATICCALL),
             0xFD => Ok(Opcode::REVERT),
             0xFE => Ok(Opcode::INVALID),
             // ... other opcodes
@@ -1182,7 +1185,7 @@ impl Opcode {
                 // GAS
                 ctx.gas += self.fix_gas(); //+ self.state_access_gas(key);
                 // OPERATION
-                let value = ctx.storage.load(key);
+                let value = ctx.state.storage_load(&ctx.target, key);
                 ctx.stack.push(value);
                 // PC
                 ctx.pc += 1;
@@ -1190,13 +1193,15 @@ impl Opcode {
                 true
             },
             Opcode::SSTORE => {
+                // CHECK REVERT CONDITION
+                if ctx.call.is_static() { return false; }
                 // STACK
                 let key = ctx.stack.pop().to_u256();
                 let value = ctx.stack.pop();
                 // GAS
                 ctx.gas += self.fix_gas(); //+ self.state_access_gas(key);
                 // OPERATION
-                ctx.storage.store(key, value);
+                ctx.state.storage_store(&ctx.target, key, value);
                 // PC
                 ctx.pc += 1;
                 // SUCCESS
@@ -2030,6 +2035,10 @@ impl Opcode {
                 let args_size = ctx.stack.pop().as_usize();
                 let ret_offset = ctx.stack.pop().as_usize();
                 let ret_size = ctx.stack.pop().as_usize();
+                // CHECK REVERT CONDITION
+                if ctx.call.is_static() & !value.is_zero() {
+                    return false;
+                }
                 // GAS
                 ctx.gas += self.fix_gas();
                 // OPERATION
@@ -2097,7 +2106,7 @@ impl Opcode {
                 ctx.gas += self.fix_gas() * ctx.memory.expansion(offset, size);
                 // OPERATION
                 let value = ctx.memory.load(offset, size);
-                ctx.call.set_result(value);
+                ctx.call.set_result(value.clone());
                 // PC
                 ctx.pc += 1;
                 // SUCCESS
@@ -2107,7 +2116,6 @@ impl Opcode {
                 // STACK
                 let gas = ctx.stack.pop().to_u256();
                 let address = ctx.stack.pop().to_address();
-                let value = ctx.stack.pop().to_u256();
                 let args_offset = ctx.stack.pop().as_usize();
                 let args_size = ctx.stack.pop().as_usize();
                 let ret_offset = ctx.stack.pop().as_usize();
@@ -2124,13 +2132,50 @@ impl Opcode {
                     U256::from(ctx.gas_left()),
                     address,
                     data,
-                    value,
+                    U256::zero(),
                     false
                 );
                 let call_result = ctx.execute_call(call);
-                let mut data = vec![0u8; ret_size];
-                data.copy_from_slice(&call_result.result[0..ret_size]);
-                ctx.memory.store(ret_offset, Bytes::from_vec(data));
+                if !call_result.success.is_zero() {
+                    let mut data = vec![0u8; ret_size];
+                    data.copy_from_slice(&call_result.result[0..ret_size]);
+                    ctx.memory.store(ret_offset, Bytes::from_vec(data));
+                }
+                ctx.stack.push(call_result.success);
+                // PC
+                ctx.pc += 1;
+                // SUCCESS
+                true
+            },
+            Opcode::STATICCALL => {
+                // STACK
+                let gas = ctx.stack.pop().to_u256();
+                let address = ctx.stack.pop().to_address();
+                let args_offset = ctx.stack.pop().as_usize();
+                let args_size = ctx.stack.pop().as_usize();
+                let ret_offset = ctx.stack.pop().as_usize();
+                let ret_size = ctx.stack.pop().as_usize();
+                // GAS
+                ctx.gas += self.fix_gas();
+                // OPERATION
+                let data = ctx.memory.load(args_offset, args_size);
+                let call = Call::new(
+                    ctx.target,
+                    address,
+                    ctx.call.originator(),
+                    gas,
+                    U256::from(ctx.gas_left()),
+                    address,
+                    data,
+                    U256::zero(),
+                    true
+                );
+                let call_result = ctx.execute_call(call);
+                if !call_result.success.is_zero() {
+                    let mut data = vec![0u8; ret_size];
+                    data.copy_from_slice(&call_result.result[0..ret_size]);
+                    ctx.memory.store(ret_offset, Bytes::from_vec(data));
+                }
                 ctx.stack.push(call_result.success);
                 // PC
                 ctx.pc += 1;

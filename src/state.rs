@@ -60,15 +60,21 @@ impl State {
 
     pub fn storage_load(&self, address: &Address, key: U256) -> Bytes32 {
         match self.get(address) {
-            Some(account_state) => account_state.storage.load(key),
+            Some(account_state) => account_state.storage().load(key),
             None => Bytes32::zero(),
         }
     }
 
     pub fn storage_store(&mut self, address: &Address, key: U256, value: Bytes32) {
         match self.get_mut(address) {
-            Some(account_state) => account_state.storage.store(key, value),
-            None => {}
+            Some(account_state) => account_state.storage_mut().store(key, value),
+            None => {
+                self.insert(
+                    address.clone(),
+                    AccountState::new(address.clone()),
+                );
+                self.storage_store(address, key, value);
+            }
         }
     }
 }
@@ -92,7 +98,7 @@ pub struct AccountState {
     )]
     storage_root: Bytes,
     #[serde(default)]
-    pub storage: Storage,
+    storage: Storage,
 }
 
 impl AccountState {
@@ -130,5 +136,13 @@ impl AccountState {
 
     pub fn storage_root(&self) -> &Bytes {
         &self.storage_root
+    }
+
+    pub fn storage(&self) -> &Storage {
+        &self.storage
+    }
+
+    pub fn storage_mut(&mut self) -> &mut Storage {
+        &mut self.storage
     }
 }

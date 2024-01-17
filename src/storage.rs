@@ -33,8 +33,8 @@ impl Storage {
         self.map.remove(&key);
     }
 
-    pub fn warm_slots( self) -> Vec<U256> {
-        self.warm_slots
+    pub fn warm_slots(&self) -> &Vec<U256> {
+        &self.warm_slots
     }
 
     pub fn clear_warm_slots(&mut self) {

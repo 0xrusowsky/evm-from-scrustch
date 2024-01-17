@@ -26,12 +26,14 @@ pub struct Code {
     pub bin: String,
 }
 
+#[derive(Debug, Clone)]
 pub struct EvmResult {
     pub stack: Vec<Bytes32>,
     pub success: bool,
     pub result: Bytes,
 }
 
+#[derive(Debug, Clone)]
 pub struct CallResult {
     pub success: Bytes32,
     pub result: Bytes,
@@ -45,10 +47,9 @@ pub struct ExecutionContext {
     code: Bytes,
     stack: Stack,
     memory: Memory,
-    storage: Storage,
     pc: usize,
     gas: usize,
-    target: Address,
+    pub target: Address,
     return_data: Bytes,
     stopped: bool,
 }
@@ -64,13 +65,22 @@ impl ExecutionContext {
             code,
             stack: Stack::new(),
             memory: Memory::new(),
-            storage: Storage::new(),
             pc: 0,
             gas: 0,
             target,
             return_data: Bytes::new(),
             stopped: false,
         }
+    }
+
+    pub fn sub_ctx(&self, code: Bytes, call: Call) -> Self {
+        let mut sub_ctx = self.clone();
+        // Update the execution subcontext for the call
+        sub_ctx.target = call.recipient();
+        sub_ctx.code = code;
+        sub_ctx.call = call;
+        sub_ctx.pc = 0;
+        sub_ctx
     }
 
     pub fn code_size(&self) -> usize {
@@ -109,58 +119,30 @@ impl ExecutionContext {
     }
 
     pub fn execute_call(&mut self, call: Call) -> CallResult {
-        let mut success = true;
         let code = self.state.code(&call.code_target());
-
         if code.is_empty() {
             return CallResult{success: Bytes32::zero(), result: Bytes::new()};
         }
 
-        // Cache the current execution context before executing the call
-        let cache = self.clone();
-
-        // Update the execution context for the call
-        self.target = call.recipient();
-        self.code = code;
-        self.call = call;
-        self.pc = 0;
-
-        loop {
-            // Check execution conditions
-            if !success || self.stopped || self.pc >= self.code.len() {
-                break;
-            }
-
-            // Process the next opcode
-            let opcode: Opcode = self.code[self.pc].try_into().unwrap();
-            let opcode_success = opcode.execute(self);
-
-            // Update control variables
-            success = opcode_success;
-        }
-
-        let result = self.call.result();
-        match success {
+        let mut sub_ctx = self.sub_ctx(code, call.clone());
+        let call_result = sub_ctx.run();
+        match call_result.success {
             true => {
-                self.return_data = result.clone();
-                // Restore the execution context
-                self.target = cache.target;
-                self.code = cache.code;
-                self.call = cache.call;
-                self.pc = cache.pc;
+                // Update the execution context
+                self.stack = sub_ctx.stack;
+                self.memory = sub_ctx.memory;
+                if !call.is_static() { self.state = sub_ctx.state };
+                self.return_data = call_result.result.clone();
 
                 CallResult {
                     success: Bytes32::one(),
-                    result,
+                    result: call_result.result,
                 }
             },
             false => {
-                // Restore the execution context and revert state changes
-                *self = cache;
-
                 CallResult {
                     success: Bytes32::zero(),
-                    result,
+                    result: call_result.result,
                 }
             },
         }

@@ -90,8 +90,12 @@ impl Call {
         self.value
     }
 
-    pub fn view(&self) -> bool {
+    pub fn is_static(&self) -> bool {
         self.view
+    }
+
+    pub fn is_zero(&self) -> bool {
+        self.value == U256::zero()
     }
 
     pub fn result(&self) -> Bytes {
