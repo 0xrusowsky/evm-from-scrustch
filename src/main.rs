@@ -13,7 +13,7 @@
  * to Rust, implement EVM in another programming language first.
  */
 use ethereum_types::U256;
-use evm::types::{Bytes, Bytes32};
+use evm::types::{hex_string_to_bytes, Bytes, Bytes32};
 use evm::{Block, Call, Code, ExecutionContext, State};
 use serde::Deserialize;
 
@@ -58,9 +58,8 @@ struct Expect {
     success: bool,
     #[serde(default)]
     stack: Vec<String>,
-    // #[serde(rename = "return")]
-    // #[serde(default)]
-    // ret: String,
+    #[serde(default, rename = "return", deserialize_with = "hex_string_to_bytes")]
+    result: Bytes,
 }
 
 fn main() {
@@ -83,10 +82,17 @@ fn main() {
             .map(|v| Bytes32::from_u256(U256::from_str_radix(v, 16).unwrap()))
             .collect();
 
-        let matching = result.success == test.expect.success && result.stack == expected_stack;
+        let matching = result.success == test.expect.success
+            && result.result == test.expect.result
+            && result.stack == expected_stack;
 
         if !matching {
             println!("Instructions: \n{}\n", test.code.asm.as_ref().unwrap());
+            println!("]\n");
+
+            println!("Expected result: {:?}", test.expect.result);
+            println!("Actual result: {:?}", result.result);
+            println!("]\n");
 
             println!("Expected success: {:?}", test.expect.success);
             println!("Expected stack: [");

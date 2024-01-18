@@ -1,11 +1,11 @@
 use crate::types::Bytes;
 
-#[derive(Debug, Default)]
+#[derive(Debug, Default, Clone)]
 pub struct Memory(Bytes);
 
 impl Memory {
     pub fn new() -> Self {
-        Memory(Bytes::new())
+        Self(Bytes::new())
     }
 
     pub fn len(&self) -> usize {

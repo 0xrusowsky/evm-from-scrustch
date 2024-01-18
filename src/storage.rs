@@ -1,44 +1,47 @@
 use std::collections::HashMap;
 use ethereum_types::U256;
+use serde::Deserialize;
 
-#[derive(Debug)]
-pub struct Storage(HashMap<U256, Vec<u8>>);
+use crate::types::Bytes32;
+
+#[derive(Debug, Default, Deserialize, Clone)]
+pub struct Storage {
+    map: HashMap<U256, Bytes32>,
+    warm_slots: Vec<U256>,
+}
 
 impl Storage {
     pub fn new() -> Self {
-        Storage(HashMap::new())
+        Self {
+            map: HashMap::new(),
+            warm_slots: Vec::new(),
+        }
     }
 
-    // pub fn len(&self) -> usize {
-    //     self.0.len()
-    // }
-
-    // pub fn size(&self) -> usize {
-    //     ((self.len() + 31 ) / 32) * 32
-    // }
-
-    // pub fn expansion(&self, offset: usize, size: usize) -> usize {
-    //     if offset + size > self.len() {
-    //         offset + size - self.len()
-    //     } else {
-    //         0
-    //     }
-    // }
-
-    pub fn load(&mut self, slot: U256, offset: usize, size: usize) -> &[u8] {
-        // if out of bounds, expand the memory
-        if offset + size > self.0.len() {
-            self.0.resize(offset + size, 0);
+    pub fn load(&self, key: U256) -> Bytes32 {
+        match self.map.get(&key) {
+            Some(value) => value.clone(),
+            None => Bytes32::zero(),
         }
-        &self.0[offset..offset + size]
     }
 
-    pub fn store(&mut self, slot: U256, offset: usize, data: &[u8]) {
-        // if out of bounds, expand the memory
-        let end = offset + data.len();
-        if end > self.len() {
-            self.0.resize(((end + 31) / 32) * 32, 0);
-        }
-        self.0[offset..offset + data.len()].copy_from_slice(data);
+    pub fn store(&mut self, key: U256, value: Bytes32) {
+        self.map.insert(key, value);
+    }
+
+    pub fn delete(&mut self, key: U256) {
+        self.map.remove(&key);
+    }
+
+    pub fn warm_slots(&self) -> &Vec<U256> {
+        &self.warm_slots
+    }
+
+    pub fn clear_warm_slots(&mut self) {
+        self.warm_slots.clear();
+    }
+
+    pub fn access_slot(&mut self, key: U256) {
+        self.warm_slots.push(key);
     }
 }

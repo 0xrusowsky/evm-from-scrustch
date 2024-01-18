@@ -57,7 +57,7 @@ impl Bytes {
 
     pub fn one() -> Bytes {
         Bytes::from_byte(1)
-    }
+    }   
 
     pub fn is_zero(&self) -> bool {
         self.0.iter().all(|&x| x == 0)
@@ -69,7 +69,7 @@ impl Bytes {
         let len = vec.len();
         let mut bytes = [0u8; 32];
         if len < 32 {
-            bytes[..len].copy_from_slice(&vec);
+            bytes[32 - len..32].copy_from_slice(&vec);
         } else {
             bytes.copy_from_slice(&vec[len - 32..len]);
         }
@@ -303,14 +303,24 @@ impl Index<Range<usize>> for Bytes {
     type Output = [u8];
 
     fn index(&self, index: Range<usize>) -> &Self::Output {
-        &self.0[index]
+        if index.start > index.end || index.start >= self.0.len() {
+            &[]
+        } else {
+            let end = usize::min(index.end, self.0.len());
+            &self.0[index.start..end]
+        }
     }
 }
 impl Index<Range<usize>> for Bytes32 {
     type Output = [u8];
 
     fn index(&self, index: Range<usize>) -> &Self::Output {
-        &self.0[index]
+        if index.start > index.end || index.start >= self.0.len() {
+            &[]
+        } else {
+            let end = usize::min(index.end, self.0.len());
+            &self.0[index.start..end]
+        }
     }
 }
 
@@ -329,12 +339,22 @@ impl IndexMut<usize> for Bytes32 {
 // Mutable indexing of a range
 impl IndexMut<Range<usize>> for Bytes {
     fn index_mut(&mut self, index: Range<usize>) -> &mut Self::Output {
-        &mut self.0[index]
+        if index.start > index.end || index.start >= self.0.len() {
+            &mut []
+        } else {
+            let end = usize::min(index.end, self.0.len());
+            &mut self.0[index.start..end]
+        }
     }
 }
 impl IndexMut<Range<usize>> for Bytes32 {
     fn index_mut(&mut self, index: Range<usize>) -> &mut Self::Output {
-        &mut self.0[index]
+        if index.start > index.end || index.start >= self.0.len() {
+            &mut []
+        } else {
+            let end = usize::min(index.end, self.0.len());
+            &mut self.0[index.start..end]
+        }
     }
 }
 

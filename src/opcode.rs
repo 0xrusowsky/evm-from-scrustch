@@ -4,9 +4,11 @@ use std::convert::TryFrom;
 use std::ops::{BitAnd, BitOr, BitXor, Not, Shl, Shr};
 
 use crate::types::{Bytes, Bytes32};
+use crate::call::Call;
 
 use super::ExecutionContext;
 
+#[derive(Debug)]
 pub enum Opcode {
     STOP,
     ADD,
@@ -48,6 +50,8 @@ pub enum Opcode {
     GASPRICE,
     EXTCODESIZE,
     EXTCODECOPY,
+    RETURNDATASIZE,
+    RETURNDATACOPY,
     EXTCODEHASH,
     BLOCKHASH,
     COINBASE,
@@ -62,6 +66,8 @@ pub enum Opcode {
     MLOAD,
     MSTORE,
     MSTORE8,
+    SLOAD,
+    SSTORE,
     JUMP,
     JUMPI,
     PC,
@@ -132,6 +138,12 @@ pub enum Opcode {
     SWAP14,
     SWAP15,
     SWAP16,
+    CALL,
+    CALLCODE,
+    RETURN,
+    DELEGATECALL,
+    STATICCALL,
+    REVERT,
     INVALID,
 }
 
@@ -180,6 +192,8 @@ impl TryFrom<u8> for Opcode {
             0x3A => Ok(Opcode::GASPRICE),
             0x3B => Ok(Opcode::EXTCODESIZE),
             0x3C => Ok(Opcode::EXTCODECOPY),
+            0x3D => Ok(Opcode::RETURNDATASIZE),
+            0x3E => Ok(Opcode::RETURNDATACOPY),
             0x3F => Ok(Opcode::EXTCODEHASH),
             0x40 => Ok(Opcode::BLOCKHASH),
             0x41 => Ok(Opcode::COINBASE),
@@ -194,6 +208,8 @@ impl TryFrom<u8> for Opcode {
             0x51 => Ok(Opcode::MLOAD),
             0x52 => Ok(Opcode::MSTORE),
             0x53 => Ok(Opcode::MSTORE8),
+            0x54 => Ok(Opcode::SLOAD),
+            0x55 => Ok(Opcode::SSTORE),
             0x56 => Ok(Opcode::JUMP),
             0x57 => Ok(Opcode::JUMPI),
             0x58 => Ok(Opcode::PC),
@@ -264,6 +280,12 @@ impl TryFrom<u8> for Opcode {
             0x9D => Ok(Opcode::SWAP14),
             0x9E => Ok(Opcode::SWAP15),
             0x9F => Ok(Opcode::SWAP16),
+            0xF1 => Ok(Opcode::CALL),
+            0xF2 => Ok(Opcode::CALLCODE),
+            0xF3 => Ok(Opcode::RETURN),
+            0xF4 => Ok(Opcode::DELEGATECALL),
+            0xFA => Ok(Opcode::STATICCALL),
+            0xFD => Ok(Opcode::REVERT),
             0xFE => Ok(Opcode::INVALID),
             // ... other opcodes
             _ => Err(format!("Invalid opcode: {}", value)),
@@ -283,7 +305,7 @@ impl Opcode {
                 ctx.pc += 1;
                 // SUCCESS
                 true
-            }
+            },
             Opcode::ADD => {
                 // STACK
                 let a = ctx.stack.pop().to_u256();
@@ -298,7 +320,7 @@ impl Opcode {
                 ctx.pc += 1;
                 // SUCCESS
                 true
-            }
+            },
             Opcode::MUL => {
                 // STACK
                 let a = ctx.stack.pop().to_u256();
@@ -313,7 +335,7 @@ impl Opcode {
                 ctx.pc += 1;
                 // SUCCESS
                 true
-            }
+            },
             Opcode::SUB => {
                 // STACK
                 let a = ctx.stack.pop().to_u256();
@@ -328,7 +350,7 @@ impl Opcode {
                 ctx.pc += 1;
                 // SUCCESS
                 true
-            }
+            },
             Opcode::DIV => {
                 // STACK
                 let a = ctx.stack.pop().to_u256();
@@ -342,7 +364,7 @@ impl Opcode {
                 ctx.pc += 1;
                 // SUCCESS
                 true
-            }
+            },
             Opcode::SDIV => {
                 // STACK
                 let a = ctx.stack.pop().to_u256();
@@ -367,7 +389,7 @@ impl Opcode {
                 ctx.pc += 1;
                 // SUCCESS
                 true
-            }
+            },
             Opcode::MOD => {
                 // STACK
                 let a = ctx.stack.pop().to_u256();
@@ -381,7 +403,7 @@ impl Opcode {
                 ctx.pc += 1;
                 // SUCCESS
                 true
-            }
+            },
             Opcode::SMOD => {
                 // STACK
                 let a = ctx.stack.pop().to_u256();
@@ -406,7 +428,7 @@ impl Opcode {
                 ctx.pc += 1;
                 // SUCCESS
                 true
-            }
+            },
             Opcode::ADDMOD => {
                 // STACK
                 let a = ctx.stack.pop().to_u512();
@@ -425,7 +447,7 @@ impl Opcode {
                 ctx.pc += 1;
                 // SUCCESS
                 true
-            }
+            },
             Opcode::MULMOD => {
                 // STACK
                 let a = ctx.stack.pop().to_u512();
@@ -444,7 +466,7 @@ impl Opcode {
                 ctx.pc += 1;
                 // SUCCESS
                 true
-            }
+            },
             Opcode::EXP => {
                 // STACK
                 let a = ctx.stack.pop().to_u256();
@@ -463,7 +485,7 @@ impl Opcode {
                 ctx.pc += 1;
                 // SUCCESS
                 true
-            }
+            },
             Opcode::SIGNEXTEND => {
                 // STACK
                 let exp = ctx.stack.pop().as_usize();
@@ -482,7 +504,7 @@ impl Opcode {
                 ctx.pc += 1;
                 // SUCCESS
                 true
-            }
+            },
             Opcode::LT => {
                 // STACK
                 let a = ctx.stack.pop().to_u256();
@@ -496,7 +518,7 @@ impl Opcode {
                 ctx.pc += 1;
                 // SUCCESS
                 true
-            }
+            },
             Opcode::GT => {
                 // STACK
                 let a = ctx.stack.pop().to_u256();
@@ -510,7 +532,7 @@ impl Opcode {
                 ctx.pc += 1;
                 // SUCCESS
                 true
-            }
+            },
             Opcode::SLT => {
                 // STACK
                 let a = ctx.stack.pop().to_u256();
@@ -530,7 +552,7 @@ impl Opcode {
                 ctx.pc += 1;
                 // SUCCESS
                 true
-            }
+            },
             Opcode::SGT => {
                 // STACK
                 let a = ctx.stack.pop().to_u256();
@@ -550,7 +572,7 @@ impl Opcode {
                 ctx.pc += 1;
                 // SUCCESS
                 true
-            }
+            },
             Opcode::EQ => {
                 // STACK
                 let a = ctx.stack.pop();
@@ -567,7 +589,7 @@ impl Opcode {
                 ctx.pc += 1;
                 // SUCCESS
                 true
-            }
+            },
             Opcode::ISZERO => {
                 // STACK
                 let a = ctx.stack.pop();
@@ -580,7 +602,7 @@ impl Opcode {
                 ctx.pc += 1;
                 // SUCCESS
                 true
-            }
+            },
             Opcode::AND => {
                 // STACK
                 let a = ctx.stack.pop();
@@ -594,7 +616,7 @@ impl Opcode {
                 ctx.pc += 1;
                 // SUCCESS
                 true
-            }
+            },
             Opcode::OR => {
                 // STACK
                 let a = ctx.stack.pop();
@@ -608,7 +630,7 @@ impl Opcode {
                 ctx.pc += 1;
                 // SUCCESS
                 true
-            }
+            },
             Opcode::XOR => {
                 // STACK
                 let a = ctx.stack.pop();
@@ -622,7 +644,7 @@ impl Opcode {
                 ctx.pc += 1;
                 // SUCCESS
                 true
-            }
+            },
             Opcode::NOT => {
                 // STACK
                 let a = ctx.stack.pop();
@@ -635,7 +657,7 @@ impl Opcode {
                 ctx.pc += 1;
                 // SUCCESS
                 true
-            }
+            },
             Opcode::BYTE => {
                 // STACK
                 let index = ctx.stack.pop().as_usize();
@@ -649,7 +671,7 @@ impl Opcode {
                 ctx.pc += 1;
                 // SUCCESS
                 true
-            }
+            },
             Opcode::SHL => {
                 // STACK
                 // let index = ctx.stack.pop().as_usize();
@@ -670,7 +692,7 @@ impl Opcode {
                 ctx.pc += 1;
                 // SUCCESS
                 true
-            }
+            },
             Opcode::SHR => {
                 // STACK
                 // let index = ctx.stack.pop().as_usize();
@@ -691,7 +713,7 @@ impl Opcode {
                 ctx.pc += 1;
                 // SUCCESS
                 true
-            }
+            },
             Opcode::SAR => {
                 // STACK
                 let index = ctx.stack.pop().as_usize();
@@ -714,7 +736,7 @@ impl Opcode {
                 ctx.pc += 1;
                 // SUCCESS
                 true
-            }
+            },
             Opcode::SHA3 => {
                 // STACK
                 let offset = ctx.stack.pop().as_usize();
@@ -730,7 +752,7 @@ impl Opcode {
                 ctx.pc += 1;
                 // SUCCESS
                 true
-            }
+            },
             Opcode::ADDRESS => {
                 // GAS
                 ctx.gas += self.fix_gas();
@@ -740,7 +762,7 @@ impl Opcode {
                 ctx.pc += 1;
                 // SUCCESS
                 true
-            }
+            },
             Opcode::BALANCE => {
                 // STACK
                 let address = ctx.stack.pop().to_address();
@@ -752,7 +774,7 @@ impl Opcode {
                 ctx.pc += 1;
                 // SUCCESS
                 true
-            }
+            },
             Opcode::ORIGIN => {
                 // GAS
                 ctx.gas += self.fix_gas();
@@ -762,7 +784,7 @@ impl Opcode {
                 ctx.pc += 1;
                 // SUCCESS
                 true
-            }
+            },
             Opcode::CALLER => {
                 // GAS
                 ctx.gas += self.fix_gas();
@@ -772,7 +794,7 @@ impl Opcode {
                 ctx.pc += 1;
                 // SUCCESS
                 true
-            }
+            },
             Opcode::CALLVALUE => {
                 // GAS
                 ctx.gas += self.fix_gas();
@@ -782,7 +804,7 @@ impl Opcode {
                 ctx.pc += 1;
                 // SUCCESS
                 true
-            }
+            },
             Opcode::CALLDATALOAD => {
                 // STACK
                 let offset = ctx.stack.pop().as_usize();
@@ -806,7 +828,7 @@ impl Opcode {
                 ctx.pc += 1;
                 // SUCCESS
                 true
-            }
+            },
             Opcode::CALLDATASIZE => {
                 // GAS
                 ctx.gas += self.fix_gas();
@@ -817,7 +839,7 @@ impl Opcode {
                 ctx.pc += 1;
                 // SUCCESS
                 true
-            }
+            },
             Opcode::CALLDATACOPY => {
                 // STACK
                 let memory_offset = ctx.stack.pop().as_usize();
@@ -843,7 +865,7 @@ impl Opcode {
                 ctx.pc += 1;
                 // SUCCESS
                 true
-            }
+            },
             Opcode::CODESIZE => {
                 // GAS
                 ctx.gas += self.fix_gas();
@@ -853,7 +875,7 @@ impl Opcode {
                 ctx.pc += 1;
                 // SUCCESS
                 true
-            }
+            },
             Opcode::CODECOPY => {
                 // STACK
                 let memory_offset = ctx.stack.pop().as_usize();
@@ -882,7 +904,7 @@ impl Opcode {
                 ctx.pc += 1;
                 // SUCCESS
                 true
-            }
+            },
             Opcode::GASPRICE => {
                 // GAS
                 ctx.gas += self.fix_gas();
@@ -892,7 +914,7 @@ impl Opcode {
                 ctx.pc += 1;
                 // SUCCESS
                 true
-            }
+            },
             Opcode::EXTCODESIZE => {
                 // STACK
                 let address = ctx.stack.pop().to_address();
@@ -904,7 +926,7 @@ impl Opcode {
                 ctx.pc += 1;
                 // SUCCESS
                 true
-            }
+            },
             Opcode::EXTCODECOPY => {
                 // STACK
                 let address = ctx.stack.pop().to_address();
@@ -934,7 +956,47 @@ impl Opcode {
                 ctx.pc += 1;
                 // SUCCESS
                 true
-            }
+            },
+            Opcode::RETURNDATASIZE => {
+                // GAS
+                ctx.gas += self.fix_gas();
+                // OPERATION
+                let data = ctx.return_data();
+                ctx.stack.push_usize(data.len());
+                // PC
+                ctx.pc += 1;
+                // SUCCESS
+                true
+            },
+            Opcode::RETURNDATACOPY => {
+                // STACK
+                let memory_offset = ctx.stack.pop().as_usize();
+                let offset = ctx.stack.pop().as_usize();
+                let mut size = ctx.stack.pop().as_usize();
+                // GAS
+                ctx.gas += self.fix_gas();
+                // OPERATION
+                let data = ctx.return_data();
+                if size > data.len() {
+                    size = data.len()
+                }
+                let mut result = vec![0u8; size];
+                let (end, len) = if offset + size > data.len() {
+                    (size, size - offset)
+                } else {
+                    (offset + size, size)
+                };
+                if len == size {
+                    result.copy_from_slice(&data[offset..end]);
+                } else {
+                    result[..len].copy_from_slice(&data[offset..end]);
+                }
+                ctx.memory.store(memory_offset, Bytes::from_vec(result));
+                // PC
+                ctx.pc += 1;
+                // SUCCESS
+                true
+            },
             Opcode::EXTCODEHASH => {
                 // STACK
                 let address = ctx.stack.pop().to_address();
@@ -946,7 +1008,7 @@ impl Opcode {
                 ctx.pc += 1;
                 // SUCCESS
                 true
-            }
+            },
             Opcode::BLOCKHASH => {
                 // STACK
                 let block_number = ctx.stack.pop();
@@ -962,7 +1024,7 @@ impl Opcode {
                 ctx.pc += 1;
                 // SUCCESS
                 true
-            }
+            },
             Opcode::COINBASE => {
                 // GAS
                 ctx.gas += self.fix_gas();
@@ -976,7 +1038,7 @@ impl Opcode {
                 ctx.pc += 1;
                 // SUCCESS
                 true
-            }
+            },
             Opcode::TIMESTAMP => {
                 // GAS
                 ctx.gas += self.fix_gas();
@@ -986,7 +1048,7 @@ impl Opcode {
                 ctx.pc += 1;
                 // SUCCESS
                 true
-            }
+            },
             Opcode::NUMBER => {
                 // GAS
                 ctx.gas += self.fix_gas();
@@ -1000,7 +1062,7 @@ impl Opcode {
                 ctx.pc += 1;
                 // SUCCESS
                 true
-            }
+            },
             Opcode::PREVRANDAO => {
                 // GAS
                 ctx.gas += self.fix_gas();
@@ -1018,7 +1080,7 @@ impl Opcode {
                 ctx.pc += 1;
                 // SUCCESS
                 true
-            }
+            },
             Opcode::GASLIMIT => {
                 // GAS
                 ctx.gas += self.fix_gas();
@@ -1028,7 +1090,7 @@ impl Opcode {
                 ctx.pc += 1;
                 // SUCCESS
                 true
-            }
+            },
             Opcode::CHAINID => {
                 // GAS
                 ctx.gas += self.fix_gas();
@@ -1039,7 +1101,7 @@ impl Opcode {
                 ctx.pc += 1;
                 // SUCCESS
                 true
-            }
+            },
             Opcode::SELFBALANCE => {
                 // STACK
                 let address = ctx.call.recipient();
@@ -1051,7 +1113,7 @@ impl Opcode {
                 ctx.pc += 1;
                 // SUCCESS
                 true
-            }
+            },
             Opcode::BASEFEE => {
                 // GAS
                 ctx.gas += self.fix_gas();
@@ -1065,7 +1127,7 @@ impl Opcode {
                 ctx.pc += 1;
                 // SUCCESS
                 true
-            }
+            },
             Opcode::POP => {
                 // GAS
                 ctx.gas += self.fix_gas();
@@ -1075,7 +1137,7 @@ impl Opcode {
                 ctx.pc += 1;
                 // SUCCESS
                 true
-            }
+            },
             Opcode::MLOAD => {
                 // STACK
                 let offset = ctx.stack.pop();
@@ -1088,7 +1150,7 @@ impl Opcode {
                 ctx.pc += 1;
                 // SUCCESS
                 true
-            }
+            },
             Opcode::MSTORE => {
                 // STACK
                 let offset = ctx.stack.pop();
@@ -1102,7 +1164,7 @@ impl Opcode {
                 ctx.pc += 1;
                 // SUCCESS
                 true
-            }
+            },
             Opcode::MSTORE8 => {
                 // STACK
                 let offset = ctx.stack.pop();
@@ -1116,7 +1178,35 @@ impl Opcode {
                 ctx.pc += 1;
                 // SUCCESS
                 true
-            }
+            },
+            Opcode::SLOAD => {
+                // STACK
+                let key = ctx.stack.pop().to_u256();
+                // GAS
+                ctx.gas += self.fix_gas(); //+ self.state_access_gas(key);
+                // OPERATION
+                let value = ctx.state.storage_load(&ctx.target, key);
+                ctx.stack.push(value);
+                // PC
+                ctx.pc += 1;
+                // SUCCESS
+                true
+            },
+            Opcode::SSTORE => {
+                // CHECK REVERT CONDITION
+                if ctx.call.is_static() { return false; }
+                // STACK
+                let key = ctx.stack.pop().to_u256();
+                let value = ctx.stack.pop();
+                // GAS
+                ctx.gas += self.fix_gas(); //+ self.state_access_gas(key);
+                // OPERATION
+                ctx.state.storage_store(&ctx.target, key, value);
+                // PC
+                ctx.pc += 1;
+                // SUCCESS
+                true
+            },
             Opcode::JUMP => {
                 // STACK
                 let jumpdest = ctx.stack.pop().as_usize();
@@ -1132,7 +1222,7 @@ impl Opcode {
                     }
                     false => false,
                 }
-            }
+            },
             Opcode::JUMPI => {
                 // STACK
                 let jumpdest = ctx.stack.pop().as_usize();
@@ -1159,7 +1249,7 @@ impl Opcode {
                         }
                     }
                 }
-            }
+            },
             Opcode::PC => {
                 // GAS
                 ctx.gas += self.fix_gas();
@@ -1169,7 +1259,7 @@ impl Opcode {
                 ctx.pc += 1;
                 // SUCCESS
                 true
-            }
+            },
             Opcode::MSIZE => {
                 // GAS
                 ctx.gas += self.fix_gas();
@@ -1179,7 +1269,7 @@ impl Opcode {
                 ctx.pc += 1;
                 // SUCCESS
                 true
-            }
+            },
             Opcode::GAS => {
                 // GAS
                 ctx.gas += self.fix_gas();
@@ -1191,7 +1281,7 @@ impl Opcode {
                 ctx.pc += 1;
                 // SUCCESS
                 true
-            }
+            },
             Opcode::JUMPDEST => {
                 // GAS
                 ctx.gas += self.fix_gas();
@@ -1199,7 +1289,7 @@ impl Opcode {
                 ctx.pc += 1;
                 // SUCCESS
                 true
-            }
+            },
             Opcode::PUSH1 => {
                 // GAS
                 ctx.gas += self.fix_gas();
@@ -1210,7 +1300,7 @@ impl Opcode {
                 ctx.pc += 2;
                 // SUCCESS
                 true
-            }
+            },
             Opcode::PUSH2 => {
                 // GAS
                 ctx.gas += self.fix_gas();
@@ -1221,7 +1311,7 @@ impl Opcode {
                 ctx.pc += 3;
                 // SUCCESS
                 true
-            }
+            },
             Opcode::PUSH3 => {
                 // GAS
                 ctx.gas += self.fix_gas();
@@ -1232,7 +1322,7 @@ impl Opcode {
                 ctx.pc += 4;
                 // SUCCESS
                 true
-            }
+            },
             Opcode::PUSH4 => {
                 // GAS
                 ctx.gas += self.fix_gas();
@@ -1243,7 +1333,7 @@ impl Opcode {
                 ctx.pc += 5;
                 // SUCCESS
                 true
-            }
+            },
             Opcode::PUSH5 => {
                 // GAS
                 ctx.gas += self.fix_gas();
@@ -1254,7 +1344,7 @@ impl Opcode {
                 ctx.pc += 6;
                 // SUCCESS
                 true
-            }
+            },
             Opcode::PUSH6 => {
                 // GAS
                 ctx.gas += self.fix_gas();
@@ -1265,7 +1355,7 @@ impl Opcode {
                 ctx.pc += 7;
                 // SUCCESS
                 true
-            }
+            },
             Opcode::PUSH7 => {
                 // GAS
                 ctx.gas += self.fix_gas();
@@ -1276,7 +1366,7 @@ impl Opcode {
                 ctx.pc += 8;
                 // SUCCESS
                 true
-            }
+            },
             Opcode::PUSH8 => {
                 // GAS
                 ctx.gas += self.fix_gas();
@@ -1287,7 +1377,7 @@ impl Opcode {
                 ctx.pc += 9;
                 // SUCCESS
                 true
-            }
+            },
             Opcode::PUSH9 => {
                 // GAS
                 ctx.gas += self.fix_gas();
@@ -1298,7 +1388,7 @@ impl Opcode {
                 ctx.pc += 10;
                 // SUCCESS
                 true
-            }
+            },
             Opcode::PUSH10 => {
                 // GAS
                 ctx.gas += self.fix_gas();
@@ -1309,7 +1399,7 @@ impl Opcode {
                 ctx.pc += 11;
                 // SUCCESS
                 true
-            }
+            },
             Opcode::PUSH11 => {
                 // GAS
                 ctx.gas += self.fix_gas();
@@ -1320,7 +1410,7 @@ impl Opcode {
                 ctx.pc += 12;
                 // SUCCESS
                 true
-            }
+            },
             Opcode::PUSH12 => {
                 // GAS
                 ctx.gas += self.fix_gas();
@@ -1331,7 +1421,7 @@ impl Opcode {
                 ctx.pc += 13;
                 // SUCCESS
                 true
-            }
+            },
             Opcode::PUSH13 => {
                 // GAS
                 ctx.gas += self.fix_gas();
@@ -1342,7 +1432,7 @@ impl Opcode {
                 ctx.pc += 14;
                 // SUCCESS
                 true
-            }
+            },
             Opcode::PUSH14 => {
                 // GAS
                 ctx.gas += self.fix_gas();
@@ -1353,7 +1443,7 @@ impl Opcode {
                 ctx.pc += 15;
                 // SUCCESS
                 true
-            }
+            },
             Opcode::PUSH15 => {
                 // GAS
                 ctx.gas += self.fix_gas();
@@ -1364,7 +1454,7 @@ impl Opcode {
                 ctx.pc += 16;
                 // SUCCESS
                 true
-            }
+            },
             Opcode::PUSH16 => {
                 // GAS
                 ctx.gas += self.fix_gas();
@@ -1375,7 +1465,7 @@ impl Opcode {
                 ctx.pc += 17;
                 // SUCCESS
                 true
-            }
+            },
             Opcode::PUSH17 => {
                 // GAS
                 ctx.gas += self.fix_gas();
@@ -1386,7 +1476,7 @@ impl Opcode {
                 ctx.pc += 18;
                 // SUCCESS
                 true
-            }
+            },
             Opcode::PUSH18 => {
                 // GAS
                 ctx.gas += self.fix_gas();
@@ -1397,7 +1487,7 @@ impl Opcode {
                 ctx.pc += 19;
                 // SUCCESS
                 true
-            }
+            },
             Opcode::PUSH19 => {
                 // GAS
                 ctx.gas += self.fix_gas();
@@ -1408,7 +1498,7 @@ impl Opcode {
                 ctx.pc += 20;
                 // SUCCESS
                 true
-            }
+            },
             Opcode::PUSH20 => {
                 // GAS
                 ctx.gas += self.fix_gas();
@@ -1419,7 +1509,7 @@ impl Opcode {
                 ctx.pc += 21;
                 // SUCCESS
                 true
-            }
+            },
             Opcode::PUSH21 => {
                 // GAS
                 ctx.gas += self.fix_gas();
@@ -1430,7 +1520,7 @@ impl Opcode {
                 ctx.pc += 22;
                 // SUCCESS
                 true
-            }
+            },
             Opcode::PUSH22 => {
                 // GAS
                 ctx.gas += self.fix_gas();
@@ -1441,7 +1531,7 @@ impl Opcode {
                 ctx.pc += 23;
                 // SUCCESS
                 true
-            }
+            },
             Opcode::PUSH23 => {
                 // GAS
                 ctx.gas += self.fix_gas();
@@ -1452,7 +1542,7 @@ impl Opcode {
                 ctx.pc += 24;
                 // SUCCESS
                 true
-            }
+            },
             Opcode::PUSH24 => {
                 // GAS
                 ctx.gas += self.fix_gas();
@@ -1463,7 +1553,7 @@ impl Opcode {
                 ctx.pc += 25;
                 // SUCCESS
                 true
-            }
+            },
             Opcode::PUSH25 => {
                 // GAS
                 ctx.gas += self.fix_gas();
@@ -1474,7 +1564,7 @@ impl Opcode {
                 ctx.pc += 26;
                 // SUCCESS
                 true
-            }
+            },
             Opcode::PUSH26 => {
                 // GAS
                 ctx.gas += self.fix_gas();
@@ -1485,7 +1575,7 @@ impl Opcode {
                 ctx.pc += 27;
                 // SUCCESS
                 true
-            }
+            },
             Opcode::PUSH27 => {
                 // GAS
                 ctx.gas += self.fix_gas();
@@ -1496,7 +1586,7 @@ impl Opcode {
                 ctx.pc += 28;
                 // SUCCESS
                 true
-            }
+            },
             Opcode::PUSH28 => {
                 // GAS
                 ctx.gas += self.fix_gas();
@@ -1507,7 +1597,7 @@ impl Opcode {
                 ctx.pc += 29;
                 // SUCCESS
                 true
-            }
+            },
             Opcode::PUSH29 => {
                 // GAS
                 ctx.gas += self.fix_gas();
@@ -1518,7 +1608,7 @@ impl Opcode {
                 ctx.pc += 30;
                 // SUCCESS
                 true
-            }
+            },
             Opcode::PUSH30 => {
                 // GAS
                 ctx.gas += self.fix_gas();
@@ -1529,7 +1619,7 @@ impl Opcode {
                 ctx.pc += 31;
                 // SUCCESS
                 true
-            }
+            },
             Opcode::PUSH31 => {
                 // GAS
                 ctx.gas += self.fix_gas();
@@ -1540,7 +1630,7 @@ impl Opcode {
                 ctx.pc += 32;
                 // SUCCESS
                 true
-            }
+            },
             Opcode::PUSH32 => {
                 // GAS
                 ctx.gas += self.fix_gas();
@@ -1551,7 +1641,7 @@ impl Opcode {
                 ctx.pc += 33;
                 // SUCCESS
                 true
-            }
+            },
             Opcode::DUP1 => {
                 // GAS
                 ctx.gas += self.fix_gas();
@@ -1565,7 +1655,7 @@ impl Opcode {
                 ctx.pc += 1;
                 // SUCCESS
                 true
-            }
+            },
             Opcode::DUP2 => {
                 // GAS
                 ctx.gas += self.fix_gas();
@@ -1579,7 +1669,7 @@ impl Opcode {
                 ctx.pc += 1;
                 // SUCCESS
                 true
-            }
+            },
             Opcode::DUP3 => {
                 // GAS
                 ctx.gas += self.fix_gas();
@@ -1593,7 +1683,7 @@ impl Opcode {
                 ctx.pc += 1;
                 // SUCCESS
                 true
-            }
+            },
             Opcode::DUP4 => {
                 // GAS
                 ctx.gas += self.fix_gas();
@@ -1607,7 +1697,7 @@ impl Opcode {
                 ctx.pc += 1;
                 // SUCCESS
                 true
-            }
+            },
             Opcode::DUP5 => {
                 // GAS
                 ctx.gas += self.fix_gas();
@@ -1621,7 +1711,7 @@ impl Opcode {
                 ctx.pc += 1;
                 // SUCCESS
                 true
-            }
+            },
             Opcode::DUP6 => {
                 // GAS
                 ctx.gas += self.fix_gas();
@@ -1635,7 +1725,7 @@ impl Opcode {
                 ctx.pc += 1;
                 // SUCCESS
                 true
-            }
+            },
             Opcode::DUP7 => {
                 // GAS
                 ctx.gas += self.fix_gas();
@@ -1649,7 +1739,7 @@ impl Opcode {
                 ctx.pc += 1;
                 // SUCCESS
                 true
-            }
+            },
             Opcode::DUP8 => {
                 // GAS
                 ctx.gas += self.fix_gas();
@@ -1663,7 +1753,7 @@ impl Opcode {
                 ctx.pc += 1;
                 // SUCCESS
                 true
-            }
+            },
             Opcode::DUP9 => {
                 // GAS
                 ctx.gas += self.fix_gas();
@@ -1677,7 +1767,7 @@ impl Opcode {
                 ctx.pc += 1;
                 // SUCCESS
                 true
-            }
+            },
             Opcode::DUP10 => {
                 // GAS
                 ctx.gas += self.fix_gas();
@@ -1691,7 +1781,7 @@ impl Opcode {
                 ctx.pc += 1;
                 // SUCCESS
                 true
-            }
+            },
             Opcode::DUP11 => {
                 // GAS
                 ctx.gas += self.fix_gas();
@@ -1705,7 +1795,7 @@ impl Opcode {
                 ctx.pc += 1;
                 // SUCCESS
                 true
-            }
+            },
             Opcode::DUP12 => {
                 // GAS
                 ctx.gas += self.fix_gas();
@@ -1719,7 +1809,7 @@ impl Opcode {
                 ctx.pc += 1;
                 // SUCCESS
                 true
-            }
+            },
             Opcode::DUP13 => {
                 // GAS
                 ctx.gas += self.fix_gas();
@@ -1733,7 +1823,7 @@ impl Opcode {
                 ctx.pc += 1;
                 // SUCCESS
                 true
-            }
+            },
             Opcode::DUP14 => {
                 // GAS
                 ctx.gas += self.fix_gas();
@@ -1747,7 +1837,7 @@ impl Opcode {
                 ctx.pc += 1;
                 // SUCCESS
                 true
-            }
+            },
             Opcode::DUP15 => {
                 // GAS
                 ctx.gas += self.fix_gas();
@@ -1761,7 +1851,7 @@ impl Opcode {
                 ctx.pc += 1;
                 // SUCCESS
                 true
-            }
+            },
             Opcode::DUP16 => {
                 // GAS
                 ctx.gas += self.fix_gas();
@@ -1775,7 +1865,7 @@ impl Opcode {
                 ctx.pc += 1;
                 // SUCCESS
                 true
-            }
+            },
             Opcode::SWAP1 => {
                 // GAS
                 ctx.gas += self.fix_gas();
@@ -1785,7 +1875,7 @@ impl Opcode {
                 ctx.pc += 1;
                 // SUCCESS
                 true
-            }
+            },
             Opcode::SWAP2 => {
                 // GAS
                 ctx.gas += self.fix_gas();
@@ -1795,7 +1885,7 @@ impl Opcode {
                 ctx.pc += 1;
                 // SUCCESS
                 true
-            }
+            },
             Opcode::SWAP3 => {
                 // GAS
                 ctx.gas += self.fix_gas();
@@ -1805,7 +1895,7 @@ impl Opcode {
                 ctx.pc += 1;
                 // SUCCESS
                 true
-            }
+            },
             Opcode::SWAP4 => {
                 // GAS
                 ctx.gas += self.fix_gas();
@@ -1815,7 +1905,7 @@ impl Opcode {
                 ctx.pc += 1;
                 // SUCCESS
                 true
-            }
+            },
             Opcode::SWAP5 => {
                 // GAS
                 ctx.gas += self.fix_gas();
@@ -1825,7 +1915,7 @@ impl Opcode {
                 ctx.pc += 1;
                 // SUCCESS
                 true
-            }
+            },
             Opcode::SWAP6 => {
                 // GAS
                 ctx.gas += self.fix_gas();
@@ -1835,7 +1925,7 @@ impl Opcode {
                 ctx.pc += 1;
                 // SUCCESS
                 true
-            }
+            },
             Opcode::SWAP7 => {
                 // GAS
                 ctx.gas += self.fix_gas();
@@ -1845,7 +1935,7 @@ impl Opcode {
                 ctx.pc += 1;
                 // SUCCESS
                 true
-            }
+            },
             Opcode::SWAP8 => {
                 // GAS
                 ctx.gas += self.fix_gas();
@@ -1855,7 +1945,7 @@ impl Opcode {
                 ctx.pc += 1;
                 // SUCCESS
                 true
-            }
+            },
             Opcode::SWAP9 => {
                 // GAS
                 ctx.gas += self.fix_gas();
@@ -1865,7 +1955,7 @@ impl Opcode {
                 ctx.pc += 1;
                 // SUCCESS
                 true
-            }
+            },
             Opcode::SWAP10 => {
                 // GAS
                 ctx.gas += self.fix_gas();
@@ -1875,7 +1965,7 @@ impl Opcode {
                 ctx.pc += 1;
                 // SUCCESS
                 true
-            }
+            },
             Opcode::SWAP11 => {
                 // GAS
                 ctx.gas += self.fix_gas();
@@ -1885,7 +1975,7 @@ impl Opcode {
                 ctx.pc += 1;
                 // SUCCESS
                 true
-            }
+            },
             Opcode::SWAP12 => {
                 // GAS
                 ctx.gas += self.fix_gas();
@@ -1895,7 +1985,7 @@ impl Opcode {
                 ctx.pc += 1;
                 // SUCCESS
                 true
-            }
+            },
             Opcode::SWAP13 => {
                 // GAS
                 ctx.gas += self.fix_gas();
@@ -1905,7 +1995,7 @@ impl Opcode {
                 ctx.pc += 1;
                 // SUCCESS
                 true
-            }
+            },
             Opcode::SWAP14 => {
                 // GAS
                 ctx.gas += self.fix_gas();
@@ -1915,7 +2005,7 @@ impl Opcode {
                 ctx.pc += 1;
                 // SUCCESS
                 true
-            }
+            },
             Opcode::SWAP15 => {
                 // GAS
                 ctx.gas += self.fix_gas();
@@ -1925,7 +2015,7 @@ impl Opcode {
                 ctx.pc += 1;
                 // SUCCESS
                 true
-            }
+            },
             Opcode::SWAP16 => {
                 // GAS
                 ctx.gas += self.fix_gas();
@@ -1935,7 +2025,177 @@ impl Opcode {
                 ctx.pc += 1;
                 // SUCCESS
                 true
-            }
+            },
+            Opcode::CALL => {
+                // STACK
+                let gas = ctx.stack.pop().to_u256();
+                let address = ctx.stack.pop().to_address();
+                let value = ctx.stack.pop().to_u256();
+                let args_offset = ctx.stack.pop().as_usize();
+                let args_size = ctx.stack.pop().as_usize();
+                let ret_offset = ctx.stack.pop().as_usize();
+                let ret_size = ctx.stack.pop().as_usize();
+                // CHECK REVERT CONDITION
+                if ctx.call.is_static() & !value.is_zero() {
+                    return false;
+                }
+                // GAS
+                ctx.gas += self.fix_gas();
+                // OPERATION
+                let data = ctx.memory.load(args_offset, args_size);
+                let call = Call::new(
+                    ctx.target,
+                    address,
+                    ctx.call.originator(),
+                    gas,
+                    U256::from(ctx.gas_left()),
+                    address,
+                    data,
+                    value,
+                    false
+                );
+                let call_result = ctx.execute_call(call);
+                let mut data = vec![0u8; ret_size];
+                data.copy_from_slice(&call_result.result[0..ret_size]);
+                ctx.memory.store(ret_offset, Bytes::from_vec(data));
+                ctx.stack.push(call_result.success);
+                // PC
+                ctx.pc += 1;
+                // SUCCESS
+                true
+            },
+            Opcode::CALLCODE => {
+                // STACK
+                let gas = ctx.stack.pop().to_u256();
+                let address = ctx.stack.pop().to_address();
+                let value = ctx.stack.pop().to_u256();
+                let args_offset = ctx.stack.pop().as_usize();
+                let args_size = ctx.stack.pop().as_usize();
+                let ret_offset = ctx.stack.pop().as_usize();
+                let ret_size = ctx.stack.pop().as_usize();
+                // GAS
+                ctx.gas += self.fix_gas();
+                // OPERATION
+                let data = ctx.memory.load(args_offset, args_size);
+                let call = Call::new(
+                    ctx.target,
+                    address,
+                    ctx.call.originator(),
+                    gas,
+                    U256::from(ctx.gas_left()),
+                    address,
+                    data,
+                    value,
+                    false
+                );
+                let call_result = ctx.execute_call(call);
+                let mut data = vec![0u8; ret_size];
+                data.copy_from_slice(&call_result.result[0..ret_size]);
+                ctx.memory.store(ret_offset, Bytes::from_vec(data));
+                ctx.stack.push(call_result.success);
+                // PC
+                ctx.pc += 1;
+                // SUCCESS
+                true
+            },
+            Opcode::RETURN => {
+                // STACK
+                let offset = ctx.stack.pop().as_usize();
+                let size = ctx.stack.pop().as_usize();
+                // GAS
+                ctx.gas += self.fix_gas() * ctx.memory.expansion(offset, size);
+                // OPERATION
+                let value = ctx.memory.load(offset, size);
+                ctx.call.set_result(value.clone());
+                // PC
+                ctx.pc += 1;
+                // SUCCESS
+                true
+            },
+            Opcode::DELEGATECALL => {
+                // STACK
+                let gas = ctx.stack.pop().to_u256();
+                let address = ctx.stack.pop().to_address();
+                let args_offset = ctx.stack.pop().as_usize();
+                let args_size = ctx.stack.pop().as_usize();
+                let ret_offset = ctx.stack.pop().as_usize();
+                let ret_size = ctx.stack.pop().as_usize();
+                // GAS
+                ctx.gas += self.fix_gas();
+                // OPERATION
+                let data = ctx.memory.load(args_offset, args_size);
+                let call = Call::new(
+                    ctx.target,
+                    ctx.target,
+                    ctx.call.originator(),
+                    gas,
+                    U256::from(ctx.gas_left()),
+                    address,
+                    data,
+                    U256::zero(),
+                    false
+                );
+                let call_result = ctx.execute_call(call);
+                if !call_result.success.is_zero() {
+                    let mut data = vec![0u8; ret_size];
+                    data.copy_from_slice(&call_result.result[0..ret_size]);
+                    ctx.memory.store(ret_offset, Bytes::from_vec(data));
+                }
+                ctx.stack.push(call_result.success);
+                // PC
+                ctx.pc += 1;
+                // SUCCESS
+                true
+            },
+            Opcode::STATICCALL => {
+                // STACK
+                let gas = ctx.stack.pop().to_u256();
+                let address = ctx.stack.pop().to_address();
+                let args_offset = ctx.stack.pop().as_usize();
+                let args_size = ctx.stack.pop().as_usize();
+                let ret_offset = ctx.stack.pop().as_usize();
+                let ret_size = ctx.stack.pop().as_usize();
+                // GAS
+                ctx.gas += self.fix_gas();
+                // OPERATION
+                let data = ctx.memory.load(args_offset, args_size);
+                let call = Call::new(
+                    ctx.target,
+                    address,
+                    ctx.call.originator(),
+                    gas,
+                    U256::from(ctx.gas_left()),
+                    address,
+                    data,
+                    U256::zero(),
+                    true
+                );
+                let call_result = ctx.execute_call(call);
+                if !call_result.success.is_zero() {
+                    let mut data = vec![0u8; ret_size];
+                    data.copy_from_slice(&call_result.result[0..ret_size]);
+                    ctx.memory.store(ret_offset, Bytes::from_vec(data));
+                }
+                ctx.stack.push(call_result.success);
+                // PC
+                ctx.pc += 1;
+                // SUCCESS
+                true
+            },
+            Opcode::REVERT => {
+                // STACK
+                let offset = ctx.stack.pop().as_usize();
+                let size = ctx.stack.pop().as_usize();
+                // GAS
+                ctx.gas += self.fix_gas() * ctx.memory.expansion(offset, size);
+                // OPERATION
+                let value = ctx.memory.load(offset, size);
+                ctx.call.set_result(value);
+                // PC
+                ctx.pc += 1;
+                // SUCCESS
+                false
+            },
             Opcode::INVALID => {
                 // PC
                 ctx.pc += 1;

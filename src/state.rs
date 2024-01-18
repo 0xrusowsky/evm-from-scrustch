@@ -3,7 +3,7 @@ use serde::Deserialize;
 use sha3::{Digest, Keccak256};
 use std::collections::HashMap;
 
-use super::Code;
+use crate::{Code, Storage};
 use crate::types::{hex_string_to_address, hex_string_to_bytes, Address, Bytes, Bytes32};
 
 #[derive(Debug, Default, Deserialize, Clone)]
@@ -17,6 +17,10 @@ impl State {
 
     pub fn get(&self, address: &Address) -> Option<&AccountState> {
         self.0.get(address)
+    }
+
+    pub fn get_mut(&mut self, address: &Address) -> Option<&mut AccountState> {
+        self.0.get_mut(address)
     }
 
     pub fn insert(&mut self, address: Address, account_state: AccountState) {
@@ -53,6 +57,26 @@ impl State {
             Bytes32::from_vec(Keccak256::digest(self.code(address).as_slice()).to_vec())
         }
     }
+
+    pub fn storage_load(&self, address: &Address, key: U256) -> Bytes32 {
+        match self.get(address) {
+            Some(account_state) => account_state.storage().load(key),
+            None => Bytes32::zero(),
+        }
+    }
+
+    pub fn storage_store(&mut self, address: &Address, key: U256, value: Bytes32) {
+        match self.get_mut(address) {
+            Some(account_state) => account_state.storage_mut().store(key, value),
+            None => {
+                self.insert(
+                    address.clone(),
+                    AccountState::new(address.clone()),
+                );
+                self.storage_store(address, key, value);
+            }
+        }
+    }
 }
 
 #[derive(Debug, Default, Deserialize, Clone)]
@@ -73,6 +97,8 @@ pub struct AccountState {
         deserialize_with = "hex_string_to_bytes"
     )]
     storage_root: Bytes,
+    #[serde(default)]
+    storage: Storage,
 }
 
 impl AccountState {
@@ -84,6 +110,7 @@ impl AccountState {
             code_bytes: Bytes::new(),
             code_test: Code::default(),
             storage_root: Bytes::new(),
+            storage: Storage::new(),
         }
     }
 
@@ -109,5 +136,13 @@ impl AccountState {
 
     pub fn storage_root(&self) -> &Bytes {
         &self.storage_root
+    }
+
+    pub fn storage(&self) -> &Storage {
+        &self.storage
+    }
+
+    pub fn storage_mut(&mut self) -> &mut Storage {
+        &mut self.storage
     }
 }

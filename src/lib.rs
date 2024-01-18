@@ -1,11 +1,14 @@
 use serde::Deserialize;
+use ethereum_types::U256;
 
 pub mod types;
-use crate::types::{Bytes, Bytes32};
+use crate::types::{Address, Bytes, Bytes32};
 pub mod stack;
 use crate::stack::Stack;
 pub mod memory;
 use crate::memory::Memory;
+pub mod storage;
+use crate::storage::Storage;
 pub mod opcode;
 use crate::opcode::Opcode;
 pub mod call;
@@ -23,11 +26,20 @@ pub struct Code {
     pub bin: String,
 }
 
+#[derive(Debug, Clone)]
 pub struct EvmResult {
     pub stack: Vec<Bytes32>,
     pub success: bool,
+    pub result: Bytes,
 }
 
+#[derive(Debug, Clone)]
+pub struct CallResult {
+    pub success: Bytes32,
+    pub result: Bytes,
+}
+
+#[derive(Debug, Clone)]
 pub struct ExecutionContext {
     call: Call,
     block: Block,
@@ -37,11 +49,15 @@ pub struct ExecutionContext {
     memory: Memory,
     pc: usize,
     gas: usize,
+    pub target: Address,
+    return_data: Bytes,
     stopped: bool,
 }
 
 impl ExecutionContext {
     pub fn new(call: Call, block: Block, state: State, code: Bytes) -> Self {
+        let target = call.recipient();
+
         Self {
             call,
             block,
@@ -51,8 +67,20 @@ impl ExecutionContext {
             memory: Memory::new(),
             pc: 0,
             gas: 0,
+            target,
+            return_data: Bytes::new(),
             stopped: false,
         }
+    }
+
+    pub fn sub_ctx(&self, code: Bytes, call: Call) -> Self {
+        let mut sub_ctx = self.clone();
+        // Update the execution subcontext for the call
+        sub_ctx.target = call.recipient();
+        sub_ctx.code = code;
+        sub_ctx.call = call;
+        sub_ctx.pc = 0;
+        sub_ctx
     }
 
     pub fn code_size(&self) -> usize {
@@ -61,6 +89,10 @@ impl ExecutionContext {
 
     pub fn code(&self) -> Bytes {
         self.code.clone()
+    }
+
+    pub fn return_data(&self) -> Bytes {
+        self.return_data.clone()
     }
 
     pub fn run(&mut self) -> EvmResult {
@@ -82,6 +114,41 @@ impl ExecutionContext {
         EvmResult {
             stack: self.stack.deref_items(),
             success,
+            result: self.call.result(),
         }
+    }
+
+    pub fn execute_call(&mut self, call: Call) -> CallResult {
+        let code = self.state.code(&call.code_target());
+        if code.is_empty() {
+            return CallResult{success: Bytes32::zero(), result: Bytes::new()};
+        }
+
+        let mut sub_ctx = self.sub_ctx(code, call.clone());
+        let call_result = sub_ctx.run();
+        match call_result.success {
+            true => {
+                // Update the execution context
+                self.stack = sub_ctx.stack;
+                self.memory = sub_ctx.memory;
+                if !call.is_static() { self.state = sub_ctx.state };
+                self.return_data = call_result.result.clone();
+
+                CallResult {
+                    success: Bytes32::one(),
+                    result: call_result.result,
+                }
+            },
+            false => {
+                CallResult {
+                    success: Bytes32::zero(),
+                    result: call_result.result,
+                }
+            },
+        }
+    }
+
+    pub fn gas_left(&self) -> usize {
+        self.gas
     }
 }

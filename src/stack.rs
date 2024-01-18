@@ -1,7 +1,7 @@
 use crate::types::{Address, Bytes32};
 use ethereum_types::U256;
 
-#[derive(Debug, Default)]
+#[derive(Debug, Default, Clone)]
 pub struct Stack {
     items: Vec<Bytes32>,
     max_depth: usize,
