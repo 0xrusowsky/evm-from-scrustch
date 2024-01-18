@@ -38,6 +38,13 @@ impl State {
         }
     }
 
+    pub fn nonce(&self, address: &Address) -> U256 {
+        match self.get(address) {
+            Some(account_state) => account_state.nonce(),
+            None => U256::zero(),
+        }
+    }
+
     pub fn code(&self, address: &Address) -> Bytes {
         match self.get(address) {
             Some(account_state) => account_state.code(),

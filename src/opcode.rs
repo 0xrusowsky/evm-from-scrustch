@@ -3,7 +3,8 @@ use sha3::{Digest, Keccak256};
 use std::convert::TryFrom;
 use std::ops::{BitAnd, BitOr, BitXor, Not, Shl, Shr};
 
-use crate::types::{Bytes, Bytes32};
+use crate::types::{Bytes, Bytes32, Address};
+use crate::utils::rlp_encode;
 use crate::call::Call;
 
 use super::ExecutionContext;
@@ -138,10 +139,12 @@ pub enum Opcode {
     SWAP14,
     SWAP15,
     SWAP16,
+    CREATE,
     CALL,
     CALLCODE,
     RETURN,
     DELEGATECALL,
+    CREATE2,
     STATICCALL,
     REVERT,
     INVALID,
@@ -280,10 +283,12 @@ impl TryFrom<u8> for Opcode {
             0x9D => Ok(Opcode::SWAP14),
             0x9E => Ok(Opcode::SWAP15),
             0x9F => Ok(Opcode::SWAP16),
+            0xF0 => Ok(Opcode::CREATE),
             0xF1 => Ok(Opcode::CALL),
             0xF2 => Ok(Opcode::CALLCODE),
             0xF3 => Ok(Opcode::RETURN),
             0xF4 => Ok(Opcode::DELEGATECALL),
+            0xF5 => Ok(Opcode::CREATE2),
             0xFA => Ok(Opcode::STATICCALL),
             0xFD => Ok(Opcode::REVERT),
             0xFE => Ok(Opcode::INVALID),
@@ -2026,6 +2031,38 @@ impl Opcode {
                 // SUCCESS
                 true
             },
+            Opcode::CREATE => {
+                // STACK
+                let value = ctx.stack.pop().to_u256();
+                let offset = ctx.stack.pop().as_usize();
+                let size = ctx.stack.pop().as_usize();
+                // CHECK REVERT CONDITION
+                if ctx.call.is_static() & !value.is_zero() {
+                    return false;
+                }
+                if !ctx.call.is_static() & (ctx.state.balance(&ctx.call.originator()) < value) {
+                    return false;
+                }
+                // GAS
+                ctx.gas += self.fix_gas();
+                // OPERATION
+                let data = ctx.memory.load(offset, size);
+                let rlp_encoded = vec![
+                    rlp_encode(ctx.target),
+                    rlp_encode(ctx.state.nonce(&ctx.target))
+                ];
+                let address = Address::from_slice(Keccak256::digest(rlp_encoded).as_slice());
+                let call_result = ctx.create_adrress(address, value, data);
+                if !call_result.success.is_zero() {
+                    ctx.stack.push_address(address);
+                } else {
+                    ctx.stack.push(Bytes32::zero());
+                }
+                // PC
+                ctx.pc += 1;
+                // SUCCESS
+                true
+            }
             Opcode::CALL => {
                 // STACK
                 let gas = ctx.stack.pop().to_u256();
@@ -2037,6 +2074,9 @@ impl Opcode {
                 let ret_size = ctx.stack.pop().as_usize();
                 // CHECK REVERT CONDITION
                 if ctx.call.is_static() & !value.is_zero() {
+                    return false;
+                }
+                if !ctx.call.is_static() & (ctx.state.balance(&ctx.call.originator()) < value) {
                     return false;
                 }
                 // GAS
