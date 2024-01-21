@@ -2,32 +2,13 @@ use serde::Deserialize;
 use ethereum_types::U256;
 
 pub mod utils;
-pub mod types;
-use crate::types::{Address, Bytes, Bytes32};
-pub mod logs;
-pub use crate::logs::{Log, JsonLog};
-pub mod stack;
-pub use crate::stack::Stack;
-pub mod memory;
-pub use crate::memory::Memory;
-pub mod storage;
-use crate::storage::Storage;
 pub mod opcode;
-use crate::opcode::Opcode;
-pub mod call;
-pub use crate::call::Call;
-pub mod block;
-pub use crate::block::Block;
-pub mod state;
-pub use crate::state::State;
-
-#[derive(Debug, Deserialize, Default, Clone)]
-pub struct Code {
-    #[serde(default)]
-    pub asm: Option<String>,
-    #[serde(default)]
-    pub bin: String,
-}
+pub mod primitives;
+pub mod interpreter;
+pub use crate::utils::*;
+pub use crate::opcode::*;
+pub use crate::primitives::*;
+pub use crate::interpreter::*;
 
 #[derive(Debug, Clone)]
 pub struct EvmResult {
@@ -45,8 +26,8 @@ pub struct CallResult {
 
 #[derive(Debug, Clone)]
 pub struct ExecutionContext {
-    call: Call,
-    block: Block,
+    call: CallContext,
+    block: BlockEnv,
     state: State,
     code: Bytes,
     stack: Stack,
@@ -61,8 +42,8 @@ pub struct ExecutionContext {
 }
 
 impl ExecutionContext {
-    pub fn new(call: Call, block: Block, state: State, code: Bytes) -> Self {
-        let target = call.recipient();
+    pub fn new(call: CallContext, block: BlockEnv, tx: TxEnv, state: State, code: Bytes) -> Self {
+        let target = tx.recipient;
 
         Self {
             call,
@@ -81,7 +62,7 @@ impl ExecutionContext {
         }
     }
 
-    pub fn sub_ctx(&self, code: Bytes, call: Call) -> Self {
+    pub fn sub_ctx(&self, code: Bytes, call: CallContext) -> Self {
         let mut sub_ctx = self.clone();
         // Update the execution subcontext for the call
         sub_ctx.target = call.recipient();
@@ -133,18 +114,18 @@ impl ExecutionContext {
             stack: self.stack.deref_items(),
             logs: self.logs.clone(),
             success,
-            result: self.call.result(),
+            result: self.call.result,
         }
     }
 
-    pub fn execute_call(&mut self, call: Call) -> CallResult {
-        match self.state.transfer(&call.originator(), &call.recipient(), call.value()) {
+    pub fn execute_call(&mut self, call: CallContext) -> CallResult {
+        match self.state.transfer(&call.caller, &call.recipient(), call.value) {
             Err(error) => {
                 println!("{:?}\n", error);
                 CallResult{success: Bytes32::zero(), result: Bytes::new()}
             },
             _ => {
-                let code = self.state.code(&call.code_target());
+                let code = self.state.code(&call.code_target);
                 if code.is_empty() {
                     return CallResult{success: Bytes32::one(), result: Bytes::new()};
                 }
@@ -156,7 +137,7 @@ impl ExecutionContext {
                         // Update the execution context
                         self.stack = sub_ctx.stack;
                         self.memory = sub_ctx.memory;
-                        if !call.is_static() { self.state = sub_ctx.state };
+                        if !call.is_static { self.state = sub_ctx.state };
                         self.return_data = call_result.result.clone();
         
                         CallResult {
@@ -176,7 +157,7 @@ impl ExecutionContext {
     }
 
     pub fn create_call(&mut self, address: Address, value: U256, code: Bytes) -> CallResult {
-        match self.state.transfer(&self.call.originator(), &self.call.recipient(), value) {
+        match self.state.transfer(&self.call.caller, &self.call.recipient(), value) {
             Err(error) => {
                 println!("{:?}\n", error);
                 CallResult{success: Bytes32::zero(), result: Bytes::new()}
@@ -189,17 +170,14 @@ impl ExecutionContext {
                     return CallResult{success: Bytes32::one(), result: Bytes::new()};
                 }
 
-                let call = Call::new(
-                    self.target,
-                    address,
-                    self.call.originator(),
-                    U256::zero(),
-                    U256::from(self.gas_left()),
-                    address,
-                    Bytes::zero(),
+                let call = CallContext{
+                    sender: self.target,
+                    caller: self.call.caller,
+                    code_target: address,
                     value,
-                    false
-                );
+                    is_static: false,
+                    result: Bytes::zero(),
+                };
 
                 let mut sub_ctx = self.sub_ctx(code, call.clone());
                 let call_result = sub_ctx.run();
@@ -208,7 +186,7 @@ impl ExecutionContext {
                         // Update the execution context
                         self.stack = sub_ctx.stack;
                         self.memory = sub_ctx.memory;
-                        if !call.is_static() { self.state = sub_ctx.state };
+                        if !call.is_static { self.state = sub_ctx.state };
                         self.return_data = call_result.result.clone();
                         self.state.create(address, call_result.result.clone(), value);
 

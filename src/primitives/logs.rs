@@ -1,15 +1,15 @@
 use crate::types::{hex_string_to_address, hex_string_to_bytes, hex_string_to_bytes_vec, Bytes, Bytes32, Address};
 use serde::Deserialize;
 
-#[derive(Debug, PartialEq, Clone)]
+#[derive(Default, Debug, PartialEq, Clone)]
 pub struct Log {
-    address: Address,
-    data: Bytes,
-    topic1: Option<Bytes32>,
-    topic2: Option<Bytes32>,
-    topic3: Option<Bytes32>,
-    topic4: Option<Bytes32>,
-    topic_count: usize,
+    pub address: Address,
+    pub data: Bytes,
+    pub topic1: Option<Bytes32>,
+    pub topic2: Option<Bytes32>,
+    pub topic3: Option<Bytes32>,
+    pub topic4: Option<Bytes32>,
+    pub topic_count: usize,
 }
 
 impl Log {
@@ -17,18 +17,6 @@ impl Log {
         Self {
             address,
             data,
-            topic1: None,
-            topic2: None,
-            topic3: None,
-            topic4: None,
-            topic_count: 0,
-        }
-    }
-
-    pub fn default() -> Self {
-        Self {
-            address: Address::zero(),
-            data: Bytes::new(),
             topic1: None,
             topic2: None,
             topic3: None,
@@ -53,40 +41,6 @@ impl Log {
         for topic in topics {
             self.add_topic(topic);
         }
-    }
-
-    pub fn add_data(&mut self, data: Bytes) {
-        self.data = data;
-    }
-
-    // Getters
-
-    pub fn address(&self) -> Address {
-        self.address
-    }
-
-    pub fn data(&self) -> Bytes {
-        self.data.clone()
-    }
-
-    pub fn topic1(&self) -> Option<Bytes32> {
-        self.topic1.clone()
-    }
-
-    pub fn topic2(&self) -> Option<Bytes32> {
-        self.topic2.clone()
-    }
-
-    pub fn topic3(&self) -> Option<Bytes32> {
-        self.topic3.clone()
-    }
-
-    pub fn topic4(&self) -> Option<Bytes32> {
-        self.topic4.clone()
-    }
-
-    pub fn topic_count(&self) -> usize {
-        self.topic_count
     }
 
     // Parsing

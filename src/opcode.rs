@@ -797,7 +797,7 @@ impl Opcode {
                 // GAS
                 ctx.gas += self.fix_gas();
                 // OPERATION
-                ctx.stack.push_address(ctx.call.originator());
+                ctx.stack.push_address(ctx.call.caller);
                 // PC
                 ctx.pc += 1;
                 // SUCCESS
@@ -2145,7 +2145,7 @@ impl Opcode {
                 if ctx.call.is_static() & !value.is_zero() {
                     return false;
                 }
-                if !ctx.call.is_static() & (ctx.state.balance(&ctx.call.originator()) < value) {
+                if !ctx.call.is_static() & (ctx.state.balance(&ctx.call.caller) < value) {
                     return false;
                 }
                 // GAS
@@ -2180,7 +2180,7 @@ impl Opcode {
                 if ctx.call.is_static() & !value.is_zero() {
                     return false;
                 }
-                if !ctx.call.is_static() & (ctx.state.balance(&ctx.call.originator()) < value) {
+                if !ctx.call.is_static() & (ctx.state.balance(&ctx.call.caller) < value) {
                     return false;
                 }
                 // GAS
@@ -2190,7 +2190,7 @@ impl Opcode {
                 let call = Call::new(
                     ctx.target,
                     address,
-                    ctx.call.originator(),
+                    ctx.call.caller,
                     gas,
                     U256::from(ctx.gas_left()),
                     address,
@@ -2224,7 +2224,7 @@ impl Opcode {
                 let call = Call::new(
                     ctx.target,
                     address,
-                    ctx.call.originator(),
+                    ctx.call.caller,
                     gas,
                     U256::from(ctx.gas_left()),
                     address,
@@ -2271,7 +2271,7 @@ impl Opcode {
                 let call = Call::new(
                     ctx.target,
                     ctx.target,
-                    ctx.call.originator(),
+                    ctx.call.caller,
                     gas,
                     U256::from(ctx.gas_left()),
                     address,
@@ -2309,7 +2309,7 @@ impl Opcode {
                 let call = Call::new(
                     ctx.target,
                     address,
-                    ctx.call.originator(),
+                    ctx.call.caller,
                     gas,
                     U256::from(ctx.gas_left()),
                     address,

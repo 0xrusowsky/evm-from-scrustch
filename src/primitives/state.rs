@@ -4,15 +4,55 @@ use serde::Deserialize;
 use sha3::{Digest, Keccak256};
 use std::collections::HashMap;
 
-use crate::{Code, Storage};
 use crate::types::{hex_string_to_address, hex_string_to_bytes, Address, Bytes, Bytes32};
 
+// EVM State is a mapping from addresses to accounts.
 #[derive(Debug, Default, Deserialize, Clone)]
 #[serde(default)]
 pub struct State(HashMap<Address, AccountState>);
 
-impl State {
+// An account's Storage is a mapping from 256-bit integer keys to `StorageSlot`s.
+#[derive(Debug, Default, Deserialize, Clone)]
+pub struct Storage {
+    // Storage map.
+    map: HashMap<U256, Bytes32>,
+    // Slots accessed during the current execution.
+    warm_slots: Vec<U256>,
+}
 
+// State of an account.
+#[derive(Debug, Default, Deserialize, Clone)]
+pub struct AccountState {
+    // Address of the account.
+    #[serde(default, deserialize_with = "hex_string_to_address")]
+    pub address: Address,
+    // Balance of the account.
+    #[serde(default)]
+    pub balance: U256,
+    // Nonce of the account.
+    #[serde(default)]
+    pub nonce: U256,
+    // Code of the account.
+    #[serde(default, deserialize_with = "hex_string_to_bytes")]
+    pub bytecode: Bytes,
+    // Code of the account (input from json tests)
+    #[serde(default, rename = "code")]
+    code_test: Code,
+    // Storage layout of the account.
+    #[serde(default)]
+    pub storage: Storage,
+}
+
+// Contract code representation for tests
+#[derive(Debug, Deserialize, Default, Clone)]
+pub struct Code {
+    #[serde(default)]
+    pub asm: Option<String>,
+    #[serde(default)]
+    pub bin: String,
+}
+
+impl State {
     pub fn new() -> Self {
         Self(HashMap::new())
     }
@@ -36,7 +76,7 @@ impl State {
     pub fn create(&mut self, address: Address, code: Bytes, balance: U256) {
         let account_state = AccountState {
             address: address.clone(),
-            code_bytes: code,
+            bytecode: code,
             balance,
             ..Default::default()
         };
@@ -85,14 +125,14 @@ impl State {
 
     pub fn balance(&self, address: &Address) -> U256 {
         match self.get(address) {
-            Some(account_state) => account_state.balance(),
+            Some(account_state) => account_state.balance,
             None => U256::zero(),
         }
     }
 
     pub fn nonce(&self, address: &Address) -> U256 {
         match self.get(address) {
-            Some(account_state) => account_state.nonce(),
+            Some(account_state) => account_state.nonce,
             None => U256::zero(),
         }
     }
@@ -119,14 +159,14 @@ impl State {
 
     pub fn storage_load(&self, address: &Address, key: U256) -> Bytes32 {
         match self.get(address) {
-            Some(account_state) => account_state.storage().load(key),
+            Some(account_state) => account_state.storage.load(key),
             None => Bytes32::zero(),
         }
     }
 
     pub fn storage_store(&mut self, address: &Address, key: U256, value: Bytes32) {
         match self.get_mut(address) {
-            Some(account_state) => account_state.storage_mut().store(key, value),
+            Some(account_state) => account_state.storage.store(key, value),
             None => {
                 self.insert(
                     address.clone(),
@@ -138,70 +178,60 @@ impl State {
     }
 }
 
-#[derive(Debug, Default, Deserialize, Clone)]
-pub struct AccountState {
-    #[serde(default, deserialize_with = "hex_string_to_address")]
-    address: Address,
-    #[serde(default)]
-    balance: U256,
-    #[serde(default)]
-    nonce: U256,
-    #[serde(default, deserialize_with = "hex_string_to_bytes")]
-    code_bytes: Bytes,
-    #[serde(default, rename = "code")]
-    code_test: Code,
-    #[serde(
-        default,
-        rename = "storageRoot",
-        deserialize_with = "hex_string_to_bytes"
-    )]
-    storage_root: Bytes,
-    #[serde(default)]
-    storage: Storage,
-}
-
 impl AccountState {
     pub fn new(address: Address) -> Self {
         Self {
             address,
             balance: U256::zero(),
             nonce: U256::zero(),
-            code_bytes: Bytes::new(),
+            bytecode: Bytes::zero(),
             code_test: Code::default(),
-            storage_root: Bytes::new(),
-            storage: Storage::new(),
+            storage: Storage::default(),
         }
     }
 
-    pub fn address(&self) -> Address {
-        self.address
-    }
-
-    pub fn balance(&self) -> U256 {
-        self.balance
-    }
-
-    pub fn nonce(&self) -> U256 {
-        self.nonce
-    }
-
     pub fn code(&self) -> Bytes {
-        if !self.code_bytes.is_empty() {
-            self.code_bytes.clone()
+        if !self.bytecode.is_empty() {
+            self.bytecode.clone()
         } else {
             Bytes::from_vec(hex::decode(&self.code_test.bin).unwrap())
         }
     }
+}
 
-    pub fn storage_root(&self) -> &Bytes {
-        &self.storage_root
+impl Storage {
+    pub fn new() -> Self {
+        Self {
+            map: HashMap::new(),
+            warm_slots: Vec::new(),
+        }
     }
 
-    pub fn storage(&self) -> &Storage {
-        &self.storage
+    pub fn load(&self, key: U256) -> Bytes32 {
+        match self.map.get(&key) {
+            Some(value) => value.clone(),
+            None => Bytes32::zero(),
+        }
     }
 
-    pub fn storage_mut(&mut self) -> &mut Storage {
-        &mut self.storage
+    pub fn store(&mut self, key: U256, value: Bytes32) {
+        self.map.insert(key, value);
+    }
+
+    pub fn delete(&mut self, key: U256) {
+        self.map.remove(&key);
+    }
+
+    pub fn warm_slots(&self) -> &Vec<U256> {
+        &self.warm_slots
+    }
+
+    pub fn clear_warm_slots(&mut self) {
+        self.warm_slots.clear();
+    }
+
+    pub fn access_slot(&mut self, key: U256) {
+        self.warm_slots.push(key);
     }
 }
+

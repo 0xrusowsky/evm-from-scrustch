@@ -1,3 +1,23 @@
+// Context of a runtime call.
+#[derive(Clone, Debug, Default, Deserialize, PartialEq, Eq, Hash)]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+pub struct CallContext {
+    // Execution address.
+    pub sender: Address,
+    // Caller address of the EVM.
+    pub caller: Address,
+    // The address the contract code was loaded from, if any.
+    pub code_target: Address,
+    // Apparent value of the EVM.
+    pub value: U256,
+    // The scheme used for the call.
+    // TODO: pub scheme: CallScheme,
+    // Whether the call is static.
+    pub is_static: bool,
+    // TODO: delete
+    pub result: Bytes
+}
+
 use ethereum_types::U256;
 use serde::Deserialize;
 

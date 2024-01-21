@@ -5,11 +5,9 @@ use std::fmt;
 use std::ops::{BitAnd, BitOr, BitXor, Not};
 use std::ops::{Index, IndexMut, Range};
 
-// --- TYPE: BYTES -----------------------------------------------------------
-//  A wrapper around Vec<u8> that represents an arbitrary number of bytes.
-//  Implements bitwise operations and conversion from/to other types that are
-//  used in EVM.
-
+// A wrapper around Vec<u8> that represents an arbitrary number of bytes.
+// Implements bitwise operations and conversion from/to other types that
+// are used in EVM.
 #[derive(Debug, Default, Clone, Deserialize, PartialEq, Eq, Hash)]
 pub struct Bytes(Vec<u8>);
 
@@ -95,11 +93,9 @@ impl Bytes {
     }
 }
 
-// -- TYPE: BYTES32 -----------------------------------------------------------
-//  A wrapper around Vec<u8> that represents an 32 bytes.
-//  Implements bitwise operations and conversion from/to other types that are
-//  used in EVM.
-
+// A wrapper around Vec<u8> that represents an 32 bytes.
+// Implements bitwise operations and conversion from/to other types that
+// are used in EVM.
 #[derive(Debug, Default, Clone, Deserialize, PartialEq, Eq, Hash)]
 pub struct Bytes32(Vec<u8>);
 
@@ -249,8 +245,9 @@ impl Bytes32 {
     }
 }
 
-// -- TYPE: ADDRESS -----------------------------------------------------------
 
+// A wrapper around H160 that represents a 20 bytes.
+// Implements conversion from/to other types that are used in EVM.
 #[derive(Debug, Default, Clone, Copy, Deserialize, PartialEq, Eq, Hash)]
 pub struct Address(H160);
 
