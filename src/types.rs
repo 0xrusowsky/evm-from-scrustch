@@ -255,6 +255,10 @@ impl Bytes32 {
 pub struct Address(H160);
 
 impl Address {
+    pub fn zero() -> Self {
+        Address(H160::zero())
+    }
+
     pub fn from_slice(slice: &[u8]) -> Self {
         Bytes32::from_vec(slice.to_vec()).to_address()
     }
@@ -361,6 +365,7 @@ impl IndexMut<Range<usize>> for Bytes32 {
 // Formatting as hex
 impl fmt::UpperHex for Bytes {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "0x")?;
         for byte in &self.0 {
             write!(f, "{:02X}", byte)?;
         }
@@ -369,6 +374,7 @@ impl fmt::UpperHex for Bytes {
 }
 impl fmt::UpperHex for Bytes32 {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "0x")?;
         for byte in &self.0 {
             write!(f, "{:02X}", byte)?;
         }
@@ -377,9 +383,11 @@ impl fmt::UpperHex for Bytes32 {
 }
 impl fmt::UpperHex for Address {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "0x")?;
         for byte in &self.0 .0 {
             write!(f, "{:02X}", byte)?;
         }
+
         Ok(())
     }
 }
@@ -501,6 +509,28 @@ where
     let trimmed = match s.strip_prefix("0x") {
         Some(stripped) => stripped,
         None => &s,
+    };
+    let bytes = hex::decode(trimmed).map_err(de::Error::custom)?;
+    Ok(Bytes::from_vec(bytes))
+}
+
+pub fn hex_string_to_bytes_vec<'de, D>(deserializer: D) -> Result<Vec<Bytes>, D::Error>
+where
+    D: Deserializer<'de>,
+{
+    let vec = Vec::<String>::deserialize(deserializer)?;
+    vec.into_iter()
+        .map(|s| {
+            hex_string_to_bytes_temp(s.as_str())
+                .map_err(serde::de::Error::custom)
+        })
+        .collect()
+}
+
+fn hex_string_to_bytes_temp(s: &str) -> Result<Bytes, serde_json::Error> {
+    let trimmed = match s.strip_prefix("0x") {
+        Some(stripped) => stripped,
+        None => s,
     };
     let bytes = hex::decode(trimmed).map_err(de::Error::custom)?;
     Ok(Bytes::from_vec(bytes))

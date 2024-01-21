@@ -3,8 +3,10 @@ use sha3::{Digest, Keccak256};
 use std::convert::TryFrom;
 use std::ops::{BitAnd, BitOr, BitXor, Not, Shl, Shr};
 
-use crate::types::{Bytes, Bytes32};
+use crate::types::{Bytes, Bytes32, Address};
+use crate::utils::rlp_encode;
 use crate::call::Call;
+use crate::logs::Log;
 
 use super::ExecutionContext;
 
@@ -138,13 +140,21 @@ pub enum Opcode {
     SWAP14,
     SWAP15,
     SWAP16,
+    LOG0,
+    LOG1,
+    LOG2,
+    LOG3,
+    LOG4,
+    CREATE,
     CALL,
     CALLCODE,
     RETURN,
     DELEGATECALL,
+    CREATE2,
     STATICCALL,
     REVERT,
     INVALID,
+    SELFDESTRUCT,
 }
 
 impl TryFrom<u8> for Opcode {
@@ -280,13 +290,21 @@ impl TryFrom<u8> for Opcode {
             0x9D => Ok(Opcode::SWAP14),
             0x9E => Ok(Opcode::SWAP15),
             0x9F => Ok(Opcode::SWAP16),
+            0xA0 => Ok(Opcode::LOG0),
+            0xA1 => Ok(Opcode::LOG1),
+            0xA2 => Ok(Opcode::LOG2),
+            0xA3 => Ok(Opcode::LOG3),
+            0xA4 => Ok(Opcode::LOG4),
+            0xF0 => Ok(Opcode::CREATE),
             0xF1 => Ok(Opcode::CALL),
             0xF2 => Ok(Opcode::CALLCODE),
             0xF3 => Ok(Opcode::RETURN),
             0xF4 => Ok(Opcode::DELEGATECALL),
+            0xF5 => Ok(Opcode::CREATE2),
             0xFA => Ok(Opcode::STATICCALL),
             0xFD => Ok(Opcode::REVERT),
             0xFE => Ok(Opcode::INVALID),
+            0xFF => Ok(Opcode::SELFDESTRUCT),
             // ... other opcodes
             _ => Err(format!("Invalid opcode: {}", value)),
         }
@@ -932,25 +950,26 @@ impl Opcode {
                 let address = ctx.stack.pop().to_address();
                 let memory_offset = ctx.stack.pop().as_usize();
                 let offset = ctx.stack.pop().as_usize();
-                let mut size = ctx.stack.pop().as_usize();
+                let size = ctx.stack.pop().as_usize();
                 // GAS
                 ctx.gas += self.fix_gas();
                 // OPERATION
                 let code = ctx.state.code(&address);
-                if size > code.len() {
-                    size = code.len()
-                }
                 let mut result = vec![0u8; size];
-                let (end, len) = if offset + size > code.len() {
-                    (size, size - offset)
+                let (end, len) = if size > code.len() {
+                    (code.len(), code.len() - offset)
                 } else {
-                    (offset + size, size)
+                    if offset + size > code.len() {
+                        (size, size - offset)
+                    } else {
+                        (offset + size, size)
+                    }
                 };
                 if len == size {
                     result.copy_from_slice(&code[offset..end]);
                 } else {
                     result[..len].copy_from_slice(&code[offset..end]);
-                }
+                };
                 ctx.memory.store(memory_offset, Bytes::from_vec(result));
                 // PC
                 ctx.pc += 1;
@@ -1011,15 +1030,16 @@ impl Opcode {
             },
             Opcode::BLOCKHASH => {
                 // STACK
-                let block_number = ctx.stack.pop();
+                let _block_number = ctx.stack.pop();
                 // GAS
                 ctx.gas += self.fix_gas();
                 // OPERATION
+                let result = Bytes32::zero();
                 // let result = match ctx.block.block_hash(block_number) {
                 //     Some(hash) => hash,
                 //     None => U256::zero(),
                 // };
-                // ctx.stack.push(result);
+                ctx.stack.push(result);
                 // PC
                 ctx.pc += 1;
                 // SUCCESS
@@ -1155,6 +1175,7 @@ impl Opcode {
                 // STACK
                 let offset = ctx.stack.pop();
                 let value = ctx.stack.pop();
+                println!(" > MSTORE\n   - offset: {:#X}\n   -  value: {:#X}", offset, value);
                 // GAS
                 ctx.gas += self.fix_gas() * ctx.memory.expansion(offset.as_usize(), 32);
                 // OPERATION
@@ -2026,6 +2047,126 @@ impl Opcode {
                 // SUCCESS
                 true
             },
+            Opcode::LOG0 => {
+                // STACK
+                let offset = ctx.stack.pop().as_usize();
+                let size = ctx.stack.pop().as_usize();
+                // GAS
+                ctx.gas += self.fix_gas();// + self.log_gas(offset, size);
+                // OPERATION
+                let data = ctx.memory.load(offset, size);
+                let log = Log::new(ctx.target, data);
+                ctx.add_log(log);
+                // PC
+                ctx.pc += 1;
+                // SUCCESS
+                true
+            },
+            Opcode::LOG1 => {
+                // STACK
+                let offset = ctx.stack.pop().as_usize();
+                let size = ctx.stack.pop().as_usize();
+                let topic1 = ctx.stack.pop();
+                // GAS
+                ctx.gas += self.fix_gas();// + self.log_gas(offset, size);
+                // OPERATION
+                let data = ctx.memory.load(offset, size);
+                let mut log = Log::new(ctx.target, data);
+                log.add_topic(topic1);
+                ctx.add_log(log);
+                // PC
+                ctx.pc += 1;
+                // SUCCESS
+                true
+            },
+            Opcode::LOG2 => {
+                // STACK
+                let offset = ctx.stack.pop().as_usize();
+                let size = ctx.stack.pop().as_usize();
+                let topic1 = ctx.stack.pop();
+                let topic2 = ctx.stack.pop();
+                // GAS
+                ctx.gas += self.fix_gas();// + self.log_gas(offset, size);
+                // OPERATION
+                let data = ctx.memory.load(offset, size);
+                let mut log = Log::new(ctx.target, data);
+                log.add_topics(vec![topic1, topic2]);
+                ctx.add_log(log);
+                // PC
+                ctx.pc += 1;
+                // SUCCESS
+                true
+            },
+            Opcode::LOG3 => {
+                // STACK
+                let offset = ctx.stack.pop().as_usize();
+                let size = ctx.stack.pop().as_usize();
+                let topic1 = ctx.stack.pop();
+                let topic2 = ctx.stack.pop();
+                let topic3 = ctx.stack.pop();
+                // GAS
+                ctx.gas += self.fix_gas();// + self.log_gas(offset, size);
+                // OPERATION
+                let data = ctx.memory.load(offset, size);
+                let mut log = Log::new(ctx.target, data);
+                log.add_topics(vec![topic1, topic2, topic3]);
+                ctx.add_log(log);
+                // PC
+                ctx.pc += 1;
+                // SUCCESS
+                true
+            },
+            Opcode::LOG4 => {
+                // STACK
+                let offset = ctx.stack.pop().as_usize();
+                let size = ctx.stack.pop().as_usize();
+                let topic1 = ctx.stack.pop();
+                let topic2 = ctx.stack.pop();
+                let topic3 = ctx.stack.pop();
+                let topic4 = ctx.stack.pop();
+                // GAS
+                ctx.gas += self.fix_gas();// + self.log_gas(offset, size);
+                // OPERATION
+                let data = ctx.memory.load(offset, size);
+                let mut log = Log::new(ctx.target, data);
+                log.add_topics(vec![topic1, topic2, topic3, topic4]);
+                ctx.add_log(log);
+                // PC
+                ctx.pc += 1;
+                // SUCCESS
+                true
+            },
+            Opcode::CREATE => {
+                // STACK
+                let value = ctx.stack.pop().to_u256();
+                let offset = ctx.stack.pop().as_usize();
+                let size = ctx.stack.pop().as_usize();
+                // CHECK REVERT CONDITION
+                if ctx.call.is_static() & !value.is_zero() {
+                    return false;
+                }
+                if !ctx.call.is_static() & (ctx.state.balance(&ctx.call.originator()) < value) {
+                    return false;
+                }
+                // GAS
+                ctx.gas += self.fix_gas();
+                // OPERATION
+                let data = ctx.memory.load(offset, size);
+                let mut rlp_encoded1 = rlp_encode(ctx.target.as_slice());
+                let mut rlp_encoded2 = rlp_encode(Bytes32::from_u256(ctx.state.nonce(&ctx.target)).as_slice());
+                rlp_encoded1.append(&mut rlp_encoded2);
+                let address = Address::from_slice(Keccak256::digest(rlp_encoded1).as_slice());
+                let call_result = ctx.create_call(address, value, data);
+                if !call_result.success.is_zero() {
+                    ctx.stack.push_address(address);
+                } else {
+                    ctx.stack.push(Bytes32::zero());
+                }
+                // PC
+                ctx.pc += 1;
+                // SUCCESS
+                true
+            }
             Opcode::CALL => {
                 // STACK
                 let gas = ctx.stack.pop().to_u256();
@@ -2037,6 +2178,9 @@ impl Opcode {
                 let ret_size = ctx.stack.pop().as_usize();
                 // CHECK REVERT CONDITION
                 if ctx.call.is_static() & !value.is_zero() {
+                    return false;
+                }
+                if !ctx.call.is_static() & (ctx.state.balance(&ctx.call.originator()) < value) {
                     return false;
                 }
                 // GAS
@@ -2147,6 +2291,9 @@ impl Opcode {
                 // SUCCESS
                 true
             },
+            Opcode::CREATE2 => {
+                todo!()
+            },
             Opcode::STATICCALL => {
                 // STACK
                 let gas = ctx.stack.pop().to_u256();
@@ -2201,6 +2348,27 @@ impl Opcode {
                 ctx.pc += 1;
                 // SUCCESS
                 false
+            },
+            Opcode::SELFDESTRUCT => {
+                // STACK
+                let address = ctx.stack.pop().to_address();
+                // CHECK REVERT CONDITION
+                if ctx.call.is_static() {
+                    return false;
+                }
+                // GAS
+                ctx.gas += self.fix_gas();
+                // OPERATION
+                match ctx.state.transfer(&ctx.target, &address, ctx.state.balance(&ctx.target)) {
+                    Ok(_) => {
+                        ctx.selfdestruct();
+                        // PC
+                        ctx.pc += 1;
+                        // SUCCESS
+                        true
+                    }
+                    Err(_) => return false,
+                }
             }
         }
     }

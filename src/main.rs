@@ -14,7 +14,7 @@
  */
 use ethereum_types::U256;
 use evm::types::{hex_string_to_bytes, Bytes, Bytes32};
-use evm::{Block, Call, Code, ExecutionContext, State};
+use evm::{Block, Call, Code, ExecutionContext, State, Log, JsonLog};
 use serde::Deserialize;
 
 #[derive(Debug, Deserialize)]
@@ -58,6 +58,8 @@ struct Expect {
     success: bool,
     #[serde(default)]
     stack: Vec<String>,
+    #[serde(default)]
+    logs: Vec<JsonLog>,
     #[serde(default, rename = "return", deserialize_with = "hex_string_to_bytes")]
     result: Bytes,
 }
@@ -65,7 +67,6 @@ struct Expect {
 fn main() {
     let text = std::fs::read_to_string("./evm.json").unwrap();
     let mut data: Vec<Evmtest> = serde_json::from_str(&text).unwrap();
-
     let total = data.len();
 
     for (index, test) in data.iter_mut().enumerate() {
@@ -82,9 +83,17 @@ fn main() {
             .map(|v| Bytes32::from_u256(U256::from_str_radix(v, 16).unwrap()))
             .collect();
 
+        let expected_logs: Vec<Log> = test
+            .expect
+            .logs
+            .iter()
+            .map(|l| Log::from_json(l).unwrap())
+            .collect();
+
         let matching = result.success == test.expect.success
             && result.result == test.expect.result
-            && result.stack == expected_stack;
+            && result.stack == expected_stack
+            && result.logs == expected_logs;
 
         if !matching {
             println!("Instructions: \n{}\n", test.code.asm.as_ref().unwrap());
@@ -96,8 +105,12 @@ fn main() {
 
             println!("Expected success: {:?}", test.expect.success);
             println!("Expected stack: [");
-            for v in expected_stack {
-                println!("  {:#X},", v);
+            for w in expected_stack {
+                println!("  {:#X},", w);
+            }
+            println!("Expected logs: [");
+            for l in expected_logs {
+                println!("  {:#?},", l);
             }
             println!("]\n");
 
@@ -105,6 +118,10 @@ fn main() {
             println!("Actual stack: [");
             for v in result.stack {
                 println!("  {:#X},", v);
+            }
+            println!("Actual logs: [");
+            for l in result.logs {
+                println!("  {:#?},", l);
             }
             println!("]\n");
 

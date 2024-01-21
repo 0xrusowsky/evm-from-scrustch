@@ -1,3 +1,4 @@
+use core::result::Result::Err;
 use ethereum_types::U256;
 use serde::Deserialize;
 use sha3::{Digest, Keccak256};
@@ -11,6 +12,7 @@ use crate::types::{hex_string_to_address, hex_string_to_bytes, Address, Bytes, B
 pub struct State(HashMap<Address, AccountState>);
 
 impl State {
+
     pub fn new() -> Self {
         Self(HashMap::new())
     }
@@ -27,13 +29,70 @@ impl State {
         self.0.insert(address, account_state);
     }
 
-    pub fn remove(&mut self, address: &Address) {
+    pub fn delete(&mut self, address: &Address) {
         self.0.remove(address);
+    }
+
+    pub fn create(&mut self, address: Address, code: Bytes, balance: U256) {
+        let account_state = AccountState {
+            address: address.clone(),
+            code_bytes: code,
+            balance,
+            ..Default::default()
+        };
+        self.0.insert(address, account_state);
+    }
+
+    pub fn transfer(&mut self, from: &Address, to: &Address, value: U256) -> Result<(), String>{
+        if value.is_zero() {return Ok(())};
+
+        let state_from = self.get_mut(from);
+        match state_from {
+            Some(state_from) => {
+                if state_from.balance < value {
+                    return Err(format!("InsufficientBalance({:#X}): {:#X} < {:#X}",
+                        from,
+                        state_from.balance,
+                        value
+                    ));
+                }
+                state_from.balance -= value;
+            },
+            _ => return Err(format!("InsufficientBalance({:#X}): {:#X} < {:#X}",
+                    from,
+                    U256::zero(),
+                    value
+                )),
+        }
+
+        let state_to = self.get_mut(to);
+        match state_to {
+            Some(state_to) => {
+                state_to.balance += value;
+            },
+            _ => {
+                let account_state = AccountState {
+                    address: to.clone(),
+                    balance: value,
+                    ..Default::default()
+                };
+                self.0.insert(to.clone(), account_state);
+            },
+        }
+
+        Ok(())
     }
 
     pub fn balance(&self, address: &Address) -> U256 {
         match self.get(address) {
             Some(account_state) => account_state.balance(),
+            None => U256::zero(),
+        }
+    }
+
+    pub fn nonce(&self, address: &Address) -> U256 {
+        match self.get(address) {
+            Some(account_state) => account_state.nonce(),
             None => U256::zero(),
         }
     }
