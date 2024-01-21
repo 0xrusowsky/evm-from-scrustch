@@ -1,6 +1,7 @@
 use serde::Deserialize;
 use ethereum_types::U256;
 
+pub mod utils;
 pub mod types;
 use crate::types::{Address, Bytes, Bytes32};
 pub mod stack;
@@ -52,6 +53,7 @@ pub struct ExecutionContext {
     pub target: Address,
     return_data: Bytes,
     stopped: bool,
+    to_delete: Vec<Address>,
 }
 
 impl ExecutionContext {
@@ -70,6 +72,7 @@ impl ExecutionContext {
             target,
             return_data: Bytes::new(),
             stopped: false,
+            to_delete: Vec::new(),
         }
     }
 
@@ -111,6 +114,12 @@ impl ExecutionContext {
             success = opcode_success;
         }
 
+        if success {
+            self.to_delete.iter().for_each(|address| {
+                self.state.delete(&address);
+            });
+        }
+
         EvmResult {
             stack: self.stack.deref_items(),
             success,
@@ -119,33 +128,98 @@ impl ExecutionContext {
     }
 
     pub fn execute_call(&mut self, call: Call) -> CallResult {
-        let code = self.state.code(&call.code_target());
-        if code.is_empty() {
-            return CallResult{success: Bytes32::zero(), result: Bytes::new()};
-        }
-
-        let mut sub_ctx = self.sub_ctx(code, call.clone());
-        let call_result = sub_ctx.run();
-        match call_result.success {
-            true => {
-                // Update the execution context
-                self.stack = sub_ctx.stack;
-                self.memory = sub_ctx.memory;
-                if !call.is_static() { self.state = sub_ctx.state };
-                self.return_data = call_result.result.clone();
-
-                CallResult {
-                    success: Bytes32::one(),
-                    result: call_result.result,
+        match self.state.transfer(&call.originator(), &call.recipient(), call.value()) {
+            Err(error) => {
+                println!("{:?}\n", error);
+                CallResult{success: Bytes32::zero(), result: Bytes::new()}
+            },
+            _ => {
+                let code = self.state.code(&call.code_target());
+                if code.is_empty() {
+                    return CallResult{success: Bytes32::one(), result: Bytes::new()};
+                }
+        
+                let mut sub_ctx = self.sub_ctx(code, call.clone());
+                let call_result = sub_ctx.run();
+                match call_result.success {
+                    true => {
+                        // Update the execution context
+                        self.stack = sub_ctx.stack;
+                        self.memory = sub_ctx.memory;
+                        if !call.is_static() { self.state = sub_ctx.state };
+                        self.return_data = call_result.result.clone();
+        
+                        CallResult {
+                            success: Bytes32::one(),
+                            result: call_result.result,
+                        }
+                    },
+                    false => {
+                        CallResult {
+                            success: Bytes32::zero(),
+                            result: call_result.result,
+                        }
+                    },
                 }
             },
-            false => {
-                CallResult {
-                    success: Bytes32::zero(),
-                    result: call_result.result,
+        }
+    }
+
+    pub fn create_call(&mut self, address: Address, value: U256, code: Bytes) -> CallResult {
+        match self.state.transfer(&self.call.originator(), &self.call.recipient(), value) {
+            Err(error) => {
+                println!("{:?}\n", error);
+                CallResult{success: Bytes32::zero(), result: Bytes::new()}
+            },
+            _ => {
+                println!("\nCreating contract at address: {:#X}", address);
+                println!("with code: {:#X}\n", code);
+                if code.is_empty() {
+                    self.state.create(address, Bytes::zero(), value);
+                    return CallResult{success: Bytes32::one(), result: Bytes::new()};
+                }
+
+                let call = Call::new(
+                    self.target,
+                    address,
+                    self.call.originator(),
+                    U256::zero(),
+                    U256::from(self.gas_left()),
+                    address,
+                    Bytes::zero(),
+                    value,
+                    false
+                );
+
+                let mut sub_ctx = self.sub_ctx(code, call.clone());
+                let call_result = sub_ctx.run();
+                match call_result.success {
+                    true => {
+                        // Update the execution context
+                        self.stack = sub_ctx.stack;
+                        self.memory = sub_ctx.memory;
+                        if !call.is_static() { self.state = sub_ctx.state };
+                        self.return_data = call_result.result.clone();
+                        self.state.create(address, call_result.result.clone(), value);
+
+                        CallResult {
+                            success: Bytes32::one(),
+                            result: call_result.result,
+                        }
+                    },
+                    false => {
+                        CallResult {
+                            success: Bytes32::zero(),
+                            result: call_result.result,
+                        }
+                    },
                 }
             },
         }
+    }
+
+    pub fn selfdestruct(&mut self) {
+        self.to_delete.push(self.target);
     }
 
     pub fn gas_left(&self) -> usize {

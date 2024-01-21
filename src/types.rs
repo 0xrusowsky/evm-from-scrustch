@@ -361,6 +361,7 @@ impl IndexMut<Range<usize>> for Bytes32 {
 // Formatting as hex
 impl fmt::UpperHex for Bytes {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "0x")?;
         for byte in &self.0 {
             write!(f, "{:02X}", byte)?;
         }
@@ -369,6 +370,7 @@ impl fmt::UpperHex for Bytes {
 }
 impl fmt::UpperHex for Bytes32 {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "0x")?;
         for byte in &self.0 {
             write!(f, "{:02X}", byte)?;
         }
@@ -377,9 +379,11 @@ impl fmt::UpperHex for Bytes32 {
 }
 impl fmt::UpperHex for Address {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "0x")?;
         for byte in &self.0 .0 {
             write!(f, "{:02X}", byte)?;
         }
+
         Ok(())
     }
 }

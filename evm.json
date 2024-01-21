@@ -2161,23 +2161,6 @@
       }
     },
     {
-      "name": "CREATE (empty)",
-      "hint": "Read \"Creating new contracts\" section of the course learning materials. This code creates a new empty account with balance 9",
-      "tx": {
-        "to": "0x9bbfed6889322e016e0a02ee459d306fc19545d8"
-      },
-      "code": {
-        "asm": "PUSH1 0\nPUSH1 0\nPUSH1 9\nCREATE\nBALANCE",
-        "bin": "600060006009f031"
-      },
-      "expect": {
-        "stack": [
-          "0x9"
-        ],
-        "success": true
-      }
-    },
-    {
       "name": "CREATE (with 4x FF)",
       "hint": "Read \"Creating new contracts\" section of the course learning materials. CALL with the given code, store the returned bytes as new contracts bytecode",
       "tx": {
@@ -2190,6 +2173,28 @@
       "expect": {
         "stack": [
           "0xffffffff00000000000000000000000000000000000000000000000000000000"
+        ],
+        "success": true
+      }
+    },
+    {
+      "name": "CREATE (empty)",
+      "hint": "Read \"Creating new contracts\" section of the course learning materials. This code creates a new empty account with balance 9",
+      "tx": {
+        "to": "0x9bbfed6889322e016e0a02ee459d306fc19545d8"
+      },
+      "state": {
+        "0x0000000000000000000000000000000000000000": {
+          "balance": "0x9"
+        }
+      },
+      "code": {
+        "asm": "PUSH1 0\nPUSH1 0\nPUSH1 9\nCREATE\nBALANCE",
+        "bin": "600060006009f031"
+      },
+      "expect": {
+        "stack": [
+          "0x9"
         ],
         "success": true
       }

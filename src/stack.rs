@@ -21,6 +21,7 @@ impl Stack {
         if self.items.len() == self.max_depth {
             panic!("Stack overflow");
         }
+        println!(" > PUSH {:#X}", value);
         self.items.push(value);
     }
 

@@ -148,6 +148,7 @@ pub enum Opcode {
     STATICCALL,
     REVERT,
     INVALID,
+    SELFDESTRUCT,
 }
 
 impl TryFrom<u8> for Opcode {
@@ -292,6 +293,7 @@ impl TryFrom<u8> for Opcode {
             0xFA => Ok(Opcode::STATICCALL),
             0xFD => Ok(Opcode::REVERT),
             0xFE => Ok(Opcode::INVALID),
+            0xFF => Ok(Opcode::SELFDESTRUCT),
             // ... other opcodes
             _ => Err(format!("Invalid opcode: {}", value)),
         }
@@ -937,25 +939,26 @@ impl Opcode {
                 let address = ctx.stack.pop().to_address();
                 let memory_offset = ctx.stack.pop().as_usize();
                 let offset = ctx.stack.pop().as_usize();
-                let mut size = ctx.stack.pop().as_usize();
+                let size = ctx.stack.pop().as_usize();
                 // GAS
                 ctx.gas += self.fix_gas();
                 // OPERATION
                 let code = ctx.state.code(&address);
-                if size > code.len() {
-                    size = code.len()
-                }
                 let mut result = vec![0u8; size];
-                let (end, len) = if offset + size > code.len() {
-                    (size, size - offset)
+                let (end, len) = if size > code.len() {
+                    (code.len(), code.len() - offset)
                 } else {
-                    (offset + size, size)
+                    if offset + size > code.len() {
+                        (size, size - offset)
+                    } else {
+                        (offset + size, size)
+                    }
                 };
                 if len == size {
                     result.copy_from_slice(&code[offset..end]);
                 } else {
                     result[..len].copy_from_slice(&code[offset..end]);
-                }
+                };
                 ctx.memory.store(memory_offset, Bytes::from_vec(result));
                 // PC
                 ctx.pc += 1;
@@ -1160,6 +1163,7 @@ impl Opcode {
                 // STACK
                 let offset = ctx.stack.pop();
                 let value = ctx.stack.pop();
+                println!(" > MSTORE\n   - offset: {:#X}\n   -  value: {:#X}", offset, value);
                 // GAS
                 ctx.gas += self.fix_gas() * ctx.memory.expansion(offset.as_usize(), 32);
                 // OPERATION
@@ -2047,12 +2051,11 @@ impl Opcode {
                 ctx.gas += self.fix_gas();
                 // OPERATION
                 let data = ctx.memory.load(offset, size);
-                let rlp_encoded = vec![
-                    rlp_encode(ctx.target),
-                    rlp_encode(ctx.state.nonce(&ctx.target))
-                ];
-                let address = Address::from_slice(Keccak256::digest(rlp_encoded).as_slice());
-                let call_result = ctx.create_adrress(address, value, data);
+                let mut rlp_encoded1 = rlp_encode(ctx.target.as_slice());
+                let mut rlp_encoded2 = rlp_encode(Bytes32::from_u256(ctx.state.nonce(&ctx.target)).as_slice());
+                rlp_encoded1.append(&mut rlp_encoded2);
+                let address = Address::from_slice(Keccak256::digest(rlp_encoded1).as_slice());
+                let call_result = ctx.create_call(address, value, data);
                 if !call_result.success.is_zero() {
                     ctx.stack.push_address(address);
                 } else {
@@ -2187,6 +2190,9 @@ impl Opcode {
                 // SUCCESS
                 true
             },
+            Opcode::CREATE2 => {
+                todo!()
+            },
             Opcode::STATICCALL => {
                 // STACK
                 let gas = ctx.stack.pop().to_u256();
@@ -2241,6 +2247,27 @@ impl Opcode {
                 ctx.pc += 1;
                 // SUCCESS
                 false
+            },
+            Opcode::SELFDESTRUCT => {
+                // STACK
+                let address = ctx.stack.pop().to_address();
+                // CHECK REVERT CONDITION
+                if ctx.call.is_static() {
+                    return false;
+                }
+                // GAS
+                ctx.gas += self.fix_gas();
+                // OPERATION
+                match ctx.state.transfer(&ctx.target, &address, ctx.state.balance(&ctx.target)) {
+                    Ok(_) => {
+                        ctx.selfdestruct();
+                        // PC
+                        ctx.pc += 1;
+                        // SUCCESS
+                        true
+                    }
+                    Err(_) => return false,
+                }
             }
         }
     }
