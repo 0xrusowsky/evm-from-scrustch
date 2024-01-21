@@ -4,10 +4,12 @@ use ethereum_types::U256;
 pub mod utils;
 pub mod types;
 use crate::types::{Address, Bytes, Bytes32};
+pub mod logs;
+pub use crate::logs::{Log, JsonLog};
 pub mod stack;
-use crate::stack::Stack;
+pub use crate::stack::Stack;
 pub mod memory;
-use crate::memory::Memory;
+pub use crate::memory::Memory;
 pub mod storage;
 use crate::storage::Storage;
 pub mod opcode;
@@ -30,6 +32,7 @@ pub struct Code {
 #[derive(Debug, Clone)]
 pub struct EvmResult {
     pub stack: Vec<Bytes32>,
+    pub logs: Vec<Log>,
     pub success: bool,
     pub result: Bytes,
 }
@@ -54,6 +57,7 @@ pub struct ExecutionContext {
     return_data: Bytes,
     stopped: bool,
     to_delete: Vec<Address>,
+    logs: Vec<Log>,
 }
 
 impl ExecutionContext {
@@ -73,6 +77,7 @@ impl ExecutionContext {
             return_data: Bytes::new(),
             stopped: false,
             to_delete: Vec::new(),
+            logs: Vec::new(),
         }
     }
 
@@ -84,6 +89,10 @@ impl ExecutionContext {
         sub_ctx.call = call;
         sub_ctx.pc = 0;
         sub_ctx
+    }
+
+    pub fn add_log(&mut self, log: Log) {
+        self.logs.push(log);
     }
 
     pub fn code_size(&self) -> usize {
@@ -122,6 +131,7 @@ impl ExecutionContext {
 
         EvmResult {
             stack: self.stack.deref_items(),
+            logs: self.logs.clone(),
             success,
             result: self.call.result(),
         }
