@@ -6,6 +6,8 @@ use std::collections::HashMap;
 
 use crate::types::{hex_string_to_address, hex_string_to_bytes, Address, Bytes, Bytes32};
 
+pub const KECCAK_EMPTY: Bytes32 = Bytes32::from_slice(&Keccak256::digest(&[]));
+
 // EVM State is a mapping from addresses to accounts.
 #[derive(Debug, Default, Deserialize, Clone)]
 #[serde(default)]
@@ -32,6 +34,9 @@ pub struct AccountState {
     // Nonce of the account.
     #[serde(default)]
     pub nonce: U256,
+    // Hash of the account's code.
+    #[serde(default, deserialize_with = "hex_string_to_bytes")]
+    pub code_hash: Bytes,
     // Code of the account.
     #[serde(default, deserialize_with = "hex_string_to_bytes")]
     pub bytecode: Bytes,
@@ -41,6 +46,9 @@ pub struct AccountState {
     // Storage layout of the account.
     #[serde(default)]
     pub storage: Storage,
+    // Storage layout of the account.
+    #[serde(default)]
+    pub warm: bool,
 }
 
 // Contract code representation for tests
@@ -61,12 +69,36 @@ impl State {
         self.0.get(address)
     }
 
+    pub fn load_account(&self, address: &Address) ->  Result<(&mut AccountState, bool), String> {
+        let account = self.0.get_mut(address);
+        match account {
+            Some(account) => {
+                match account.warm {
+                    true => Ok((account, true)),
+                    false => Ok((account, false)),
+                }
+            }
+            None => {
+                self.new_not_existing(address);
+                let account = self.0.get_mut(address);
+                match account {
+                    Some(account) => Ok((account, false)),
+                    None => Err("Error creating account".to_string()),
+                }
+            }
+        }
+    }
+
     pub fn get_mut(&mut self, address: &Address) -> Option<&mut AccountState> {
         self.0.get_mut(address)
     }
 
     pub fn insert(&mut self, address: Address, account_state: AccountState) {
         self.0.insert(address, account_state);
+    }
+
+    pub fn new_not_existing(&mut self, address: &Address) {
+        self.0.insert(address.clone(), AccountState::new(address.clone()));
     }
 
     pub fn delete(&mut self, address: &Address) {
@@ -123,58 +155,41 @@ impl State {
         Ok(())
     }
 
-    pub fn balance(&self, address: &Address) -> U256 {
-        match self.get(address) {
-            Some(account_state) => account_state.balance,
-            None => U256::zero(),
+    pub fn balance(&self, address: &Address) -> Option<U256> {
+        self.load_account(address).ok().map(|(acc, _)| acc.balance)
+    }
+    
+    pub fn nonce(&self, address: &Address) -> Option<U256> {
+        self.load_account(address).ok().map(|(acc, _)| acc.nonce)
+    }
+    
+    pub fn code(&self, address: &Address) -> Option<Bytes> {
+        self.load_account(address).ok().map(|(acc, _)| acc.code())
+    }
+    
+    pub fn code_size(&self, address: &Address) -> Option<usize> {
+        self.load_account(address).ok().map(|(acc, _)| acc.code().len())
+    }
+    
+    pub fn code_hash(&self, address: &Address) -> Option<Bytes32> {
+        match self.code(address) {
+            Some(code) => {
+                if code.is_empty() {
+                    Some(KECCAK_EMPTY)
+                } else {
+                    Some(Bytes32::from_vec(Keccak256::digest(code.as_slice()).to_vec()))
+                }
+            }
+            None => None,
         }
     }
-
-    pub fn nonce(&self, address: &Address) -> U256 {
-        match self.get(address) {
-            Some(account_state) => account_state.nonce,
-            None => U256::zero(),
-        }
-    }
-
-    pub fn code(&self, address: &Address) -> Bytes {
-        match self.get(address) {
-            Some(account_state) => account_state.code(),
-            None => Bytes::new(),
-        }
-    }
-
-    pub fn code_size(&self, address: &Address) -> usize {
-        self.code(address).len()
-    }
-
-    pub fn code_hash(&self, address: &Address) -> Bytes32 {
-        let code = self.code(address);
-        if code.is_empty() {
-            Bytes32::from_vec(vec![0])
-        } else {
-            Bytes32::from_vec(Keccak256::digest(self.code(address).as_slice()).to_vec())
-        }
-    }
-
-    pub fn storage_load(&self, address: &Address, key: U256) -> Bytes32 {
-        match self.get(address) {
-            Some(account_state) => account_state.storage.load(key),
-            None => Bytes32::zero(),
-        }
+    
+    pub fn storage_load(&self, address: &Address, key: U256) -> Option<Bytes32> {
+        self.load_account(address).ok().map(|(acc, _)| acc.storage.load(key))
     }
 
     pub fn storage_store(&mut self, address: &Address, key: U256, value: Bytes32) {
-        match self.get_mut(address) {
-            Some(account_state) => account_state.storage.store(key, value),
-            None => {
-                self.insert(
-                    address.clone(),
-                    AccountState::new(address.clone()),
-                );
-                self.storage_store(address, key, value);
-            }
-        }
+        self.load_account(address).ok().map(|(acc, _)| acc.storage.store(key, value));
     }
 }
 
@@ -184,9 +199,11 @@ impl AccountState {
             address,
             balance: U256::zero(),
             nonce: U256::zero(),
+            code_hash: Bytes::zero(),
             bytecode: Bytes::zero(),
             code_test: Code::default(),
             storage: Storage::default(),
+            warm: false,
         }
     }
 

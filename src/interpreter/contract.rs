@@ -1,6 +1,6 @@
 use ethereum_types::U256;
 use crate::call::CallContext;
-use crate::primitives::{types::*, env::Env};
+use crate::primitives::{types::*, env::*};
 
 // EVM contract information.
 #[derive(Clone, Debug, Default)]
@@ -21,15 +21,15 @@ pub struct Contract {
 
 impl Contract {
     // Creates a new contract from the given `Env`.
-    pub fn from_env(env: &Env, bytecode: Bytes, hash: Bytes32) -> Self {
-        Self::new(
-            env.tx.data.clone(),
-            bytecode,
+    pub fn from_env(env: &Env, code: Bytes, hash: Bytes32) -> Self {
+        Self{
+            calldata: env.tx.data.clone(),
+            code,
             hash,
-            env.tx.recipient,
-            env.tx.caller,
-            env.tx.value,
-        )
+            address: env.tx.recipient,
+            caller: env.tx.originator,
+            value: env.tx.value,
+        }
     }
 
     // Creates a new contract from the given `CallContext`.
@@ -39,14 +39,14 @@ impl Contract {
         hash: Bytes32,
         ctx: &CallContext,
     ) -> Self {
-        Self::new(
+        Self{
             calldata,
-            bytecode,
+            code: bytecode,
             hash,
-            ctx.address,
-            ctx.caller,
-            ctx.value,
-        )
+            address: ctx.address,
+            caller: ctx.originator,
+            value: ctx.value,
+        }
     }
 
     pub fn calldata_size(&self) -> usize {

@@ -1,17 +1,23 @@
 use crate::types::{Address, Bytes32};
 use ethereum_types::U256;
 
-#[derive(Debug, Default, Clone)]
+/// EVM interpreter stack limit.
+pub const STACK_LIMIT: usize = 1024;
+
+/// EVM stack with `STACK_LIMIT` capacity of words.
+#[derive(Debug, Default, Clone, PartialEq, Eq, Hash)]
 pub struct Stack {
+    /// The underlying 32-byte words of the stack.
     items: Vec<Bytes32>,
+    /// The max depth of the stack.
     max_depth: usize,
 }
 
 impl Stack {
     pub fn new() -> Self {
         Self {
-            items: Vec::new(),
-            max_depth: 1024,
+            items: Vec::with_capacity(STACK_LIMIT),
+            max_depth: STACK_LIMIT,
         }
     }
 

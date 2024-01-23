@@ -3,9 +3,9 @@
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 pub struct CallContext {
     // Execution address.
-    pub sender: Address,
+    pub address: Address,
     // Caller address of the EVM.
-    pub caller: Address,
+    pub originator: Address,
     // The address the contract code was loaded from, if any.
     pub code_target: Address,
     // Apparent value of the EVM.
