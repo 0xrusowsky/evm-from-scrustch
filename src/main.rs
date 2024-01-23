@@ -12,9 +12,9 @@
  * gave up and switched to JavaScript, Python, or Go. If you are new
  * to Rust, implement EVM in another programming language first.
  */
-use ethereum_types::U256;
-use evm::types::{hex_string_to_bytes, Bytes, Bytes32};
-use evm::{Block, Call, Code, ExecutionContext, State, Log, JsonLog};
+use evm::primitives::*;
+use evm::interpreter::*;
+use evm::ExecutionContext;
 use serde::Deserialize;
 
 #[derive(Debug, Deserialize)]

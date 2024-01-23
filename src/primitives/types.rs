@@ -1,9 +1,18 @@
-use ethereum_types::{H160, U256, U512, U64};
+pub use ethereum_types::{H160, H256, U64, U256, U512};
 use serde::de::{self, Deserializer};
 use serde::Deserialize;
 use std::fmt;
 use std::ops::{BitAnd, BitOr, BitXor, Not};
 use std::ops::{Index, IndexMut, Range};
+
+
+#[derive(Debug, Deserialize, Default, Clone)]
+pub struct Code {
+    #[serde(default)]
+    pub asm: Option<String>,
+    #[serde(default)]
+    pub bin: String,
+}
 
 // --- TYPE: BYTES -----------------------------------------------------------
 //  A wrapper around Vec<u8> that represents an arbitrary number of bytes.

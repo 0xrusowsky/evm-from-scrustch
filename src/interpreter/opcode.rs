@@ -1,14 +1,13 @@
-use ethereum_types::U256;
-use sha3::{Digest, Keccak256};
 use std::convert::TryFrom;
+use sha3::{Digest, Keccak256};
 use std::ops::{BitAnd, BitOr, BitXor, Not, Shl, Shr};
 
-use crate::types::{Bytes, Bytes32, Address};
+use crate::types::{Bytes, Bytes32, Address, U256};
 use crate::utils::rlp_encode;
 use crate::call::Call;
 use crate::logs::Log;
 
-use super::ExecutionContext;
+use super::super::ExecutionContext;
 
 #[derive(Debug)]
 pub enum Opcode {

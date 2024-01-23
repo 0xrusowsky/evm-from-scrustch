@@ -1,33 +1,9 @@
-use serde::Deserialize;
-use ethereum_types::U256;
-
 pub mod utils;
-pub mod types;
-use crate::types::{Address, Bytes, Bytes32};
-pub mod logs;
-pub use crate::logs::{Log, JsonLog};
-pub mod stack;
-pub use crate::stack::Stack;
-pub mod memory;
-pub use crate::memory::Memory;
-pub mod storage;
-use crate::storage::Storage;
-pub mod opcode;
-use crate::opcode::Opcode;
-pub mod call;
-pub use crate::call::Call;
-pub mod block;
-pub use crate::block::Block;
-pub mod state;
-pub use crate::state::State;
+pub mod primitives;
+pub mod interpreter;
 
-#[derive(Debug, Deserialize, Default, Clone)]
-pub struct Code {
-    #[serde(default)]
-    pub asm: Option<String>,
-    #[serde(default)]
-    pub bin: String,
-}
+pub use primitives::*;
+pub use interpreter::*;
 
 #[derive(Debug, Clone)]
 pub struct EvmResult {
