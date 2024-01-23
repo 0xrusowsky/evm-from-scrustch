@@ -21,8 +21,7 @@ pub struct CallResult {
 
 #[derive(Debug, Clone)]
 pub struct ExecutionContext {
-    call: Call,
-    block: Block,
+    env: Env,
     state: State,
     code: Bytes,
     stack: Stack,
@@ -38,11 +37,10 @@ pub struct ExecutionContext {
 
 impl ExecutionContext {
     pub fn new(call: Call, block: Block, state: State, code: Bytes) -> Self {
-        let target = call.recipient();
+        let target = call.recipient;
 
         Self {
-            call,
-            block,
+            env: Env::new(call, block),
             state,
             code,
             stack: Stack::new(),
@@ -60,9 +58,9 @@ impl ExecutionContext {
     pub fn sub_ctx(&self, code: Bytes, call: Call) -> Self {
         let mut sub_ctx = self.clone();
         // Update the execution subcontext for the call
-        sub_ctx.target = call.recipient();
+        sub_ctx.target = call.recipient;
         sub_ctx.code = code;
-        sub_ctx.call = call;
+        sub_ctx.env.call = call;
         sub_ctx.pc = 0;
         sub_ctx
     }
@@ -109,18 +107,18 @@ impl ExecutionContext {
             stack: self.stack.deref_items(),
             logs: self.logs.clone(),
             success,
-            result: self.call.result(),
+            result: self.env.call.result(),
         }
     }
 
     pub fn execute_call(&mut self, call: Call) -> CallResult {
-        match self.state.transfer(&call.originator(), &call.recipient(), call.value()) {
+        match self.state.transfer(&call.originator, &call.recipient, call.value) {
             Err(error) => {
                 println!("{:?}\n", error);
                 CallResult{success: Bytes32::zero(), result: Bytes::new()}
             },
             _ => {
-                let code = self.state.code(&call.code_target());
+                let code = self.state.code(&call.code_target);
                 if code.is_empty() {
                     return CallResult{success: Bytes32::one(), result: Bytes::new()};
                 }
@@ -152,7 +150,7 @@ impl ExecutionContext {
     }
 
     pub fn create_call(&mut self, address: Address, value: U256, code: Bytes) -> CallResult {
-        match self.state.transfer(&self.call.originator(), &self.call.recipient(), value) {
+        match self.state.transfer(&self.env.call.originator, &self.env.call.recipient, value) {
             Err(error) => {
                 println!("{:?}\n", error);
                 CallResult{success: Bytes32::zero(), result: Bytes::new()}
@@ -168,7 +166,7 @@ impl ExecutionContext {
                 let call = Call::new(
                     self.target,
                     address,
-                    self.call.originator(),
+                    self.env.call.originator,
                     U256::zero(),
                     U256::from(self.gas_left()),
                     address,

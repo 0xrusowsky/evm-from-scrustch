@@ -4,7 +4,7 @@ use std::ops::{BitAnd, BitOr, BitXor, Not, Shl, Shr};
 
 use crate::types::{Bytes, Bytes32, Address, U256};
 use crate::utils::rlp_encode;
-use crate::call::Call;
+use crate::env::Call;
 use crate::logs::Log;
 
 use super::super::ExecutionContext;
@@ -774,7 +774,7 @@ impl Opcode {
                 // GAS
                 ctx.gas += self.fix_gas();
                 // OPERATION
-                ctx.stack.push_address(ctx.call.recipient());
+                ctx.stack.push_address(ctx.env.call.recipient);
                 // PC
                 ctx.pc += 1;
                 // SUCCESS
@@ -796,7 +796,7 @@ impl Opcode {
                 // GAS
                 ctx.gas += self.fix_gas();
                 // OPERATION
-                ctx.stack.push_address(ctx.call.originator());
+                ctx.stack.push_address(ctx.env.call.originator);
                 // PC
                 ctx.pc += 1;
                 // SUCCESS
@@ -806,7 +806,7 @@ impl Opcode {
                 // GAS
                 ctx.gas += self.fix_gas();
                 // OPERATION
-                ctx.stack.push_address(ctx.call.sender());
+                ctx.stack.push_address(ctx.env.call.sender);
                 // PC
                 ctx.pc += 1;
                 // SUCCESS
@@ -816,7 +816,7 @@ impl Opcode {
                 // GAS
                 ctx.gas += self.fix_gas();
                 // OPERATION
-                ctx.stack.push_u256(ctx.call.value());
+                ctx.stack.push_u256(ctx.env.call.value);
                 // PC
                 ctx.pc += 1;
                 // SUCCESS
@@ -829,7 +829,7 @@ impl Opcode {
                 ctx.gas += self.fix_gas();
                 // OPERATION
                 let mut result = [0u8; 32];
-                let calldata = ctx.call.data();
+                let calldata = ctx.env.call.data();
                 let (end, len) = if offset + 32 > calldata.len() {
                     (32, 32 - offset)
                 } else {
@@ -850,7 +850,7 @@ impl Opcode {
                 // GAS
                 ctx.gas += self.fix_gas();
                 // OPERATION
-                let result = ctx.call.data_size();
+                let result = ctx.env.call.data_size();
                 ctx.stack.push_usize(result);
                 // PC
                 ctx.pc += 1;
@@ -866,7 +866,7 @@ impl Opcode {
                 ctx.gas += self.fix_gas();
                 // OPERATION
                 let mut result = vec![0u8; size];
-                let calldata = ctx.call.data();
+                let calldata = ctx.env.call.data();
                 let (end, len) = if offset + size > calldata.len() {
                     (size, size - offset)
                 } else {
@@ -926,7 +926,7 @@ impl Opcode {
                 // GAS
                 ctx.gas += self.fix_gas();
                 // OPERATION
-                ctx.stack.push_u256(ctx.call.gas_price());
+                ctx.stack.push_u256(ctx.env.call.gas_price);
                 // PC
                 ctx.pc += 1;
                 // SUCCESS
@@ -1034,7 +1034,7 @@ impl Opcode {
                 ctx.gas += self.fix_gas();
                 // OPERATION
                 let result = Bytes32::zero();
-                // let result = match ctx.block.block_hash(block_number) {
+                // let result = match ctx.env.block.block_hash(block_number) {
                 //     Some(hash) => hash,
                 //     None => U256::zero(),
                 // };
@@ -1048,7 +1048,7 @@ impl Opcode {
                 // GAS
                 ctx.gas += self.fix_gas();
                 // OPERATION
-                let result = match ctx.block.beneficiary() {
+                let result = match ctx.env.block.beneficiary {
                     Some(coinbase) => coinbase.to_u256(),
                     None => U256::zero(),
                 };
@@ -1062,7 +1062,7 @@ impl Opcode {
                 // GAS
                 ctx.gas += self.fix_gas();
                 // OPERATION
-                ctx.stack.push_u256(ctx.block.timestamp());
+                ctx.stack.push_u256(ctx.env.block.timestamp);
                 // PC
                 ctx.pc += 1;
                 // SUCCESS
@@ -1072,7 +1072,7 @@ impl Opcode {
                 // GAS
                 ctx.gas += self.fix_gas();
                 // OPERATION
-                let result = match ctx.block.number() {
+                let result = match ctx.env.block.number {
                     Some(number) => Bytes32::from_u64(number).to_u256(),
                     None => U256::zero(),
                 };
@@ -1086,10 +1086,10 @@ impl Opcode {
                 // GAS
                 ctx.gas += self.fix_gas();
                 // OPERATION
-                let result = match ctx.block.prev_randao() {
+                let result = match ctx.env.block.prev_randao {
                     Some(number) => number,
                     // If block.prev_randao is None, use block.difficulty instead
-                    None => match ctx.block.difficulty() {
+                    None => match ctx.env.block.difficulty {
                         Some(number) => number,
                         None => U256::zero(),
                     },
@@ -1104,7 +1104,7 @@ impl Opcode {
                 // GAS
                 ctx.gas += self.fix_gas();
                 // OPERATION
-                ctx.stack.push_u256(ctx.block.gas_limit());
+                ctx.stack.push_u256(ctx.env.block.gas_limit);
                 // PC
                 ctx.pc += 1;
                 // SUCCESS
@@ -1114,7 +1114,7 @@ impl Opcode {
                 // GAS
                 ctx.gas += self.fix_gas();
                 // OPERATION
-                let chain_id = Bytes32::from_u64(ctx.block.chain_id()).to_u256();
+                let chain_id = Bytes32::from_u64(ctx.env.block.chain_id).to_u256();
                 ctx.stack.push_u256(chain_id);
                 // PC
                 ctx.pc += 1;
@@ -1123,7 +1123,7 @@ impl Opcode {
             },
             Opcode::SELFBALANCE => {
                 // STACK
-                let address = ctx.call.recipient();
+                let address = ctx.env.call.recipient;
                 // GAS
                 ctx.gas += self.fix_gas();
                 // OPERATION
@@ -1137,7 +1137,7 @@ impl Opcode {
                 // GAS
                 ctx.gas += self.fix_gas();
                 // OPERATION
-                let base_fee = match ctx.block.base_fee() {
+                let base_fee = match ctx.env.block.base_fee {
                     Some(base_fee) => base_fee,
                     None => U256::zero(),
                 };
@@ -1214,7 +1214,7 @@ impl Opcode {
             },
             Opcode::SSTORE => {
                 // CHECK REVERT CONDITION
-                if ctx.call.is_static() { return false; }
+                if ctx.env.call.is_static() { return false; }
                 // STACK
                 let key = ctx.stack.pop().to_u256();
                 let value = ctx.stack.pop();
@@ -2141,10 +2141,10 @@ impl Opcode {
                 let offset = ctx.stack.pop().as_usize();
                 let size = ctx.stack.pop().as_usize();
                 // CHECK REVERT CONDITION
-                if ctx.call.is_static() & !value.is_zero() {
+                if ctx.env.call.is_static() & !value.is_zero() {
                     return false;
                 }
-                if !ctx.call.is_static() & (ctx.state.balance(&ctx.call.originator()) < value) {
+                if !ctx.env.call.is_static() & (ctx.state.balance(&ctx.env.call.originator) < value) {
                     return false;
                 }
                 // GAS
@@ -2176,10 +2176,10 @@ impl Opcode {
                 let ret_offset = ctx.stack.pop().as_usize();
                 let ret_size = ctx.stack.pop().as_usize();
                 // CHECK REVERT CONDITION
-                if ctx.call.is_static() & !value.is_zero() {
+                if ctx.env.call.is_static() & !value.is_zero() {
                     return false;
                 }
-                if !ctx.call.is_static() & (ctx.state.balance(&ctx.call.originator()) < value) {
+                if !ctx.env.call.is_static() & (ctx.state.balance(&ctx.env.call.originator) < value) {
                     return false;
                 }
                 // GAS
@@ -2189,7 +2189,7 @@ impl Opcode {
                 let call = Call::new(
                     ctx.target,
                     address,
-                    ctx.call.originator(),
+                    ctx.env.call.originator,
                     gas,
                     U256::from(ctx.gas_left()),
                     address,
@@ -2223,7 +2223,7 @@ impl Opcode {
                 let call = Call::new(
                     ctx.target,
                     address,
-                    ctx.call.originator(),
+                    ctx.env.call.originator,
                     gas,
                     U256::from(ctx.gas_left()),
                     address,
@@ -2249,7 +2249,7 @@ impl Opcode {
                 ctx.gas += self.fix_gas() * ctx.memory.expansion(offset, size);
                 // OPERATION
                 let value = ctx.memory.load(offset, size);
-                ctx.call.set_result(value.clone());
+                ctx.env.call.set_result(value.clone());
                 // PC
                 ctx.pc += 1;
                 // SUCCESS
@@ -2270,7 +2270,7 @@ impl Opcode {
                 let call = Call::new(
                     ctx.target,
                     ctx.target,
-                    ctx.call.originator(),
+                    ctx.env.call.originator,
                     gas,
                     U256::from(ctx.gas_left()),
                     address,
@@ -2308,7 +2308,7 @@ impl Opcode {
                 let call = Call::new(
                     ctx.target,
                     address,
-                    ctx.call.originator(),
+                    ctx.env.call.originator,
                     gas,
                     U256::from(ctx.gas_left()),
                     address,
@@ -2336,7 +2336,7 @@ impl Opcode {
                 ctx.gas += self.fix_gas() * ctx.memory.expansion(offset, size);
                 // OPERATION
                 let value = ctx.memory.load(offset, size);
-                ctx.call.set_result(value);
+                ctx.env.call.set_result(value);
                 // PC
                 ctx.pc += 1;
                 // SUCCESS
@@ -2352,7 +2352,7 @@ impl Opcode {
                 // STACK
                 let address = ctx.stack.pop().to_address();
                 // CHECK REVERT CONDITION
-                if ctx.call.is_static() {
+                if ctx.env.call.is_static() {
                     return false;
                 }
                 // GAS
