@@ -70,24 +70,34 @@ impl Block {
 
 #[derive(Debug, Default, Clone, Deserialize)]
 pub struct Call {
+    // Call sender (in solidity `msg.from`)
     #[serde(default, rename = "from", deserialize_with = "hex_string_to_address")]
     pub sender: Address,
+    // Call receiver
     #[serde(default, rename = "to", deserialize_with = "hex_string_to_address")]
     pub recipient: Address,
+    // Transaction originator (in solidity `tx.origin`)
     #[serde(default, rename = "origin", deserialize_with = "hex_string_to_address")]
     pub originator: Address,
+    // Gas price of the tx
     #[serde(default, rename = "gasprice")]
     pub gas_price: U256,
+    // Available gas of the tx
     #[serde(default)]
     pub available_gas: U256,
+    // Contract address of the code to be executed
     #[serde(default)]
     pub code_target: Address,
+    // Call data
     #[serde(default, deserialize_with = "hex_string_to_bytes")]
     pub data: Bytes,
+    // Value transferred in the call
     #[serde(default)]
     pub value: U256,
+    // Whether it is a view only call or not
     #[serde(default)]
     view: bool,
+    // Result of the call
     #[serde(default, deserialize_with = "hex_string_to_bytes")]
     result: Bytes,
 }
@@ -119,7 +129,6 @@ impl Call {
     }
 
     // Getters
-
     pub fn data(&self) -> Bytes {
         self.data.clone()
     }
