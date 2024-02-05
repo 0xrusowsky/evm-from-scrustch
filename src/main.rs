@@ -1,30 +1,18 @@
-/**
- * EVM From Scratch
- * Rust template
- *
- * To work on EVM From Scratch in Rust:
- *
- * - Install Rust: https://www.rust-lang.org/tools/install
- * - Edit `rust/lib.rs`
- * - Run `cd rust && cargo run` to run the tests
- *
- * Hint: most people who were trying to learn Rust and EVM at the same
- * gave up and switched to JavaScript, Python, or Go. If you are new
- * to Rust, implement EVM in another programming language first.
- */
-use evm::primitives::*;
-use evm::interpreter::*;
-use evm::ExecutionContext;
+// This program runs the test suite `evm.json` developed by w1nt3r.eth
+// which has been borrowed from his Github repo `EVM From Scratch`.
+use evm_from_scrust::primitives::*;
+use evm_from_scrust::ExecutionContext;
 use serde::Deserialize;
 
+// Struct to deserialize the test inputs
 #[derive(Debug, Deserialize)]
 struct Evmtest {
-    // common fields for all tests
+    // Common fields for all tests
     name: String,
     hint: String,
     code: Code,
     expect: Expect,
-    // optional fields
+    // Optional fields
     tx: Option<Call>,
     block: Option<Block>,
     state: Option<State>,
@@ -53,13 +41,18 @@ impl Evmtest {
     }
 }
 
+// Struct to deserialize the expected test outcomes
 #[derive(Debug, Deserialize)]
 struct Expect {
+    // Whether the transaction should be successful or not
     success: bool,
+    // EVM stack after finalizing the execution of the test
     #[serde(default)]
     stack: Vec<String>,
+    // EVM logs after finalizing the execution of the test
     #[serde(default)]
     logs: Vec<JsonLog>,
+    // Result of executing the transaction
     #[serde(default, rename = "return", deserialize_with = "hex_string_to_bytes")]
     result: Bytes,
 }

@@ -5,12 +5,45 @@ use std::collections::HashMap;
 
 use crate::types::{hex_string_to_address, hex_string_to_bytes, Address, Bytes, Bytes32, U256, Code};
 
+// EVM State. A key-value pair of account states.
 #[derive(Debug, Default, Deserialize, Clone)]
 #[serde(default)]
 pub struct State(HashMap<Address, AccountState>);
 
-impl State {
+// Account state. The state of an account in the EVM.
+#[derive(Debug, Default, Deserialize, Clone)]
+pub struct AccountState {
+    // Address of the account
+    #[serde(default, deserialize_with = "hex_string_to_address")]
+    address: Address,
+    // Balance of the account
+    #[serde(default)]
+    balance: U256,
+    // Nonce of the account
+    #[serde(default)]
+    nonce: U256,
+    // Code of the account (in bytes)
+    #[serde(default, deserialize_with = "hex_string_to_bytes")]
+    code_bytes: Bytes,
+    // Code of the account (in a test suite compatible format)
+    #[serde(default, rename = "code")]
+    code_test: Code,
+    // Storage of the account
+    #[serde(default)]
+    storage: Storage,
+}
 
+// Storage of an account. A key-value pair of storage slots.
+#[derive(Debug, Default, Deserialize, Clone)]
+pub struct Storage {
+    // Storage map
+    map: HashMap<U256, Bytes32>,
+    // Warm slots
+    warm_slots: Vec<U256>,
+}
+
+// State implementation.
+impl State {
     pub fn new() -> Self {
         Self(HashMap::new())
     }
@@ -136,28 +169,7 @@ impl State {
     }
 }
 
-#[derive(Debug, Default, Deserialize, Clone)]
-pub struct AccountState {
-    #[serde(default, deserialize_with = "hex_string_to_address")]
-    address: Address,
-    #[serde(default)]
-    balance: U256,
-    #[serde(default)]
-    nonce: U256,
-    #[serde(default, deserialize_with = "hex_string_to_bytes")]
-    code_bytes: Bytes,
-    #[serde(default, rename = "code")]
-    code_test: Code,
-    #[serde(
-        default,
-        rename = "storageRoot",
-        deserialize_with = "hex_string_to_bytes"
-    )]
-    storage_root: Bytes,
-    #[serde(default)]
-    storage: Storage,
-}
-
+// Account state implementation.
 impl AccountState {
     pub fn new(address: Address) -> Self {
         Self {
@@ -166,7 +178,6 @@ impl AccountState {
             nonce: U256::zero(),
             code_bytes: Bytes::new(),
             code_test: Code::default(),
-            storage_root: Bytes::new(),
             storage: Storage::new(),
         }
     }
@@ -191,10 +202,6 @@ impl AccountState {
         }
     }
 
-    pub fn storage_root(&self) -> &Bytes {
-        &self.storage_root
-    }
-
     pub fn storage(&self) -> &Storage {
         &self.storage
     }
@@ -204,12 +211,7 @@ impl AccountState {
     }
 }
 
-#[derive(Debug, Default, Deserialize, Clone)]
-pub struct Storage {
-    map: HashMap<U256, Bytes32>,
-    warm_slots: Vec<U256>,
-}
-
+// Storage implementation.
 impl Storage {
     pub fn new() -> Self {
         Self {

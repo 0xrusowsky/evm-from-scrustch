@@ -122,7 +122,7 @@ dependencies = [
 ]
 
 [[package]]
-name = "evm"
+name = "evm-from-scrust"
 version = "0.1.0"
 dependencies = [
  "ethereum-types",

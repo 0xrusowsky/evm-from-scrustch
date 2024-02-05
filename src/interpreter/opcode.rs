@@ -905,16 +905,15 @@ impl Opcode {
                 ctx.gas += self.fix_gas();
                 // OPERATION
                 let mut result = vec![0u8; size];
-                let code = ctx.code();
                 let (end, len) = if offset + size > ctx.code_size() {
                     (size, size - offset)
                 } else {
                     (offset + size, size)
                 };
                 if len == size {
-                    result.copy_from_slice(&code[offset..end]);
+                    result.copy_from_slice(&ctx.code[offset..end]);
                 } else {
-                    result[..len].copy_from_slice(&code[offset..end]);
+                    result[..len].copy_from_slice(&ctx.code[offset..end]);
                 }
                 ctx.memory.store(memory_offset, Bytes::from_vec(result));
                 // PC

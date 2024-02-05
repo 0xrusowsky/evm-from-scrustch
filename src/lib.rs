@@ -1,3 +1,7 @@
+// Author:       0xrusowsky
+// Project:      EVM from scrustch
+// Description:  A minimal implementation of the Ethereum Virtual Machine, from scratch.
+
 pub mod utils;
 pub mod primitives;
 pub mod interpreter;
@@ -7,32 +11,50 @@ pub use interpreter::*;
 
 #[derive(Debug, Clone)]
 pub struct EvmResult {
+    // Resulting stack after the EVM execution
     pub stack: Vec<Bytes32>,
+    // Resulting logs after the EVM execution
     pub logs: Vec<Log>,
+    // Whether the transaction was successful or not
     pub success: bool,
+    // Result of the transaction execution
     pub result: Bytes,
 }
 
 #[derive(Debug, Clone)]
 pub struct CallResult {
+    // Whether the transaction was successful (1) or not (0)
     pub success: Bytes32,
+    // Result of the transaction execution
     pub result: Bytes,
 }
 
 #[derive(Debug, Clone)]
 pub struct ExecutionContext {
-    env: Env,
-    state: State,
-    code: Bytes,
-    stack: Stack,
-    memory: Memory,
-    pc: usize,
-    gas: usize,
+    // Execution environment
+    pub env: Env,
+    // Address targeted by the current execution
     pub target: Address,
-    return_data: Bytes,
-    stopped: bool,
-    to_delete: Vec<Address>,
-    logs: Vec<Log>,
+    // Code to be executed in the current execution
+    pub code: Bytes,
+    // Program counter of the current execution
+    pub pc: usize,
+    // Stack of the current execution
+    pub stack: Stack,
+    // EVM State
+    pub state: State,
+    // EVM Memory
+    pub memory: Memory,
+    // Gas consumed by the current execution
+    pub gas: usize,
+    // Return data resulting from the execution
+    pub return_data: Bytes,
+    // Logs of the current execution
+    pub logs: Vec<Log>,
+    // Whether the execution context has been stopped or not
+    pub stopped: bool,
+    // Addresses to be deleted at the end of the execurion
+    pub to_delete: Vec<Address>,
 }
 
 impl ExecutionContext {
@@ -71,10 +93,6 @@ impl ExecutionContext {
 
     pub fn code_size(&self) -> usize {
         self.code.len()
-    }
-
-    pub fn code(&self) -> Bytes {
-        self.code.clone()
     }
 
     pub fn return_data(&self) -> Bytes {

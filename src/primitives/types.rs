@@ -5,11 +5,13 @@ use std::fmt;
 use std::ops::{BitAnd, BitOr, BitXor, Not};
 use std::ops::{Index, IndexMut, Range};
 
-
+// Code struct used in the test suite
 #[derive(Debug, Deserialize, Default, Clone)]
 pub struct Code {
+    // Opcode representation of the code
     #[serde(default)]
     pub asm: Option<String>,
+    // Bytecode representation of the code
     #[serde(default)]
     pub bin: String,
 }

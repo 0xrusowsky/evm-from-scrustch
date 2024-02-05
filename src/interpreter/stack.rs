@@ -1,6 +1,8 @@
-use crate::types::{Address, Bytes32};
-use ethereum_types::U256;
+use crate::types::{U256, Address, Bytes32};
 
+const MAX_STACK_DEPTH: usize = 1024;
+
+// EVM Stack. A stack of 32-byte items.
 #[derive(Debug, Default, Clone)]
 pub struct Stack {
     items: Vec<Bytes32>,
@@ -11,7 +13,7 @@ impl Stack {
     pub fn new() -> Self {
         Self {
             items: Vec::new(),
-            max_depth: 1024,
+            max_depth: MAX_STACK_DEPTH,
         }
     }
 
