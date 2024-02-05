@@ -3,12 +3,16 @@ use serde::Deserialize;
 
 #[derive(Debug, PartialEq, Clone)]
 pub struct Log {
-    address: Address,
-    data: Bytes,
-    topic1: Option<Bytes32>,
-    topic2: Option<Bytes32>,
-    topic3: Option<Bytes32>,
-    topic4: Option<Bytes32>,
+    // Address of the contract that generated the log
+    pub address: Address,
+    // Data of the log
+    pub data: Bytes,
+    // Topics of the log
+    pub topic1: Option<Bytes32>,
+    pub topic2: Option<Bytes32>,
+    pub topic3: Option<Bytes32>,
+    pub topic4: Option<Bytes32>,
+    // Number of topics
     topic_count: usize,
 }
 
@@ -57,36 +61,6 @@ impl Log {
 
     pub fn add_data(&mut self, data: Bytes) {
         self.data = data;
-    }
-
-    // Getters
-
-    pub fn address(&self) -> Address {
-        self.address
-    }
-
-    pub fn data(&self) -> Bytes {
-        self.data.clone()
-    }
-
-    pub fn topic1(&self) -> Option<Bytes32> {
-        self.topic1.clone()
-    }
-
-    pub fn topic2(&self) -> Option<Bytes32> {
-        self.topic2.clone()
-    }
-
-    pub fn topic3(&self) -> Option<Bytes32> {
-        self.topic3.clone()
-    }
-
-    pub fn topic4(&self) -> Option<Bytes32> {
-        self.topic4.clone()
-    }
-
-    pub fn topic_count(&self) -> usize {
-        self.topic_count
     }
 
     // Parsing

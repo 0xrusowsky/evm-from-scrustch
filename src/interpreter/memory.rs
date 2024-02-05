@@ -1,5 +1,6 @@
 use crate::types::Bytes;
 
+// EVM Memory. A byte-addressable array of bytes.
 #[derive(Debug, Default, Clone)]
 pub struct Memory(Bytes);
 

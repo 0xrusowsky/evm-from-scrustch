@@ -1,7 +1,7 @@
 // This program runs the test suite `evm.json` developed by w1nt3r.eth
 // which has been borrowed from his Github repo `EVM From Scratch`.
-use evm::primitives::*;
-use evm::ExecutionContext;
+use evm_from_scrust::primitives::*;
+use evm_from_scrust::ExecutionContext;
 use serde::Deserialize;
 
 // Struct to deserialize the test inputs

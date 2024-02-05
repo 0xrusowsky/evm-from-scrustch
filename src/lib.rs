@@ -1,3 +1,7 @@
+// Author:       0xrusowsky
+// Project:      EVM from scrustch
+// Description:  A minimal implementation of the Ethereum Virtual Machine, from scratch.
+
 pub mod utils;
 pub mod primitives;
 pub mod interpreter;
