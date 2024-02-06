@@ -13,20 +13,20 @@ use crate::types::{
 pub struct Env {
     /// Call
     #[serde(default)]
-    pub call: Call,
+    pub tx: TxEnv,
     /// Block
     #[serde(default)]
-    pub block: Block,
+    pub block: BlockEnv,
 }
 
 impl Env {
-    pub fn new(call: Call, block: Block) -> Self {
-        Self { call, block }
+    pub fn new(tx: TxEnv, block: BlockEnv) -> Self {
+        Self { tx, block }
     }
 }
 
 #[derive(Debug, Default, Deserialize, Clone)]
-pub struct Block {
+pub struct BlockEnv {
     /// Chain ID
     #[serde(default, rename = "chainId")]
     pub chain_id: U64,
@@ -62,14 +62,14 @@ pub struct Block {
     pub beneficiary: Option<Address>,
 }
 
-impl Block {
+impl BlockEnv {
     pub fn new() -> Self {
         Self::default()
     }
 }
 
 #[derive(Debug, Default, Clone, Deserialize)]
-pub struct Call {
+pub struct TxEnv {
     // Call sender (in solidity `msg.from`)
     #[serde(default, rename = "from", deserialize_with = "hex_string_to_address")]
     pub sender: Address,
@@ -97,12 +97,9 @@ pub struct Call {
     // Whether it is a view only call or not
     #[serde(default)]
     view: bool,
-    // Result of the call
-    #[serde(default, deserialize_with = "hex_string_to_bytes")]
-    result: Bytes,
 }
 
-impl Call {
+impl TxEnv {
     pub fn new(
         sender: Address,
         recipient: Address,
@@ -124,7 +121,6 @@ impl Call {
             data,
             value,
             view,
-            result: Bytes::new(),
         }
     }
 
@@ -143,14 +139,5 @@ impl Call {
 
     pub fn is_zero(&self) -> bool {
         self.value == U256::zero()
-    }
-
-    pub fn result(&self) -> Bytes {
-        self.result.clone()
-    }
-
-    // Setters
-    pub fn set_result(&mut self, result: Bytes) {
-        self.result = result;
     }
 }

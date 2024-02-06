@@ -10,59 +10,25 @@ pub use primitives::*;
 pub use interpreter::*;
 
 #[derive(Debug, Clone)]
-pub struct EvmResult {
-    // Resulting stack after the EVM execution
-    pub stack: Vec<Bytes32>,
-    // Resulting logs after the EVM execution
-    pub logs: Vec<Log>,
-    // Whether the transaction was successful or not
-    pub success: bool,
-    // Result of the transaction execution
-    pub result: Bytes,
-}
-
-#[derive(Debug, Clone)]
-pub struct CallResult {
-    // Whether the transaction was successful (1) or not (0)
-    pub success: Bytes32,
-    // Result of the transaction execution
-    pub result: Bytes,
-}
-
-#[derive(Debug, Clone)]
 pub struct ExecutionContext {
     // Execution environment
     pub env: Env,
-    // Address targeted by the current execution
-    pub target: Address,
-    // Code to be executed in the current execution
-    pub code: Bytes,
-    // Program counter of the current execution
-    pub pc: usize,
-    // Stack of the current execution
-    pub stack: Stack,
     // EVM State
     pub state: State,
-    // EVM Memory
-    pub memory: Memory,
-    // Gas consumed by the current execution
-    pub gas: usize,
-    // Return data resulting from the execution
-    pub return_data: Bytes,
+    // EVM Interpreter
+    pub interpreter: Interpreter,
     // Logs of the current execution
     pub logs: Vec<Log>,
-    // Whether the execution context has been stopped or not
-    pub stopped: bool,
     // Addresses to be deleted at the end of the execurion
     pub to_delete: Vec<Address>,
 }
 
 impl ExecutionContext {
-    pub fn new(call: Call, block: Block, state: State, code: Bytes) -> Self {
-        let target = call.recipient;
+    pub fn new(tx: TxEnv, block: BlockEnv, state: State, code: Bytes) -> Self {
+        let target = tx.recipient;
 
         Self {
-            env: Env::new(call, block),
+            env: Env::new(tx, block),
             state,
             code,
             stack: Stack::new(),
@@ -82,7 +48,7 @@ impl ExecutionContext {
         // Update the execution subcontext for the call
         sub_ctx.target = call.recipient;
         sub_ctx.code = code;
-        sub_ctx.env.call = call;
+        sub_ctx.env.tx = call;
         sub_ctx.pc = 0;
         sub_ctx
     }
